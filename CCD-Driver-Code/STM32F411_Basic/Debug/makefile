@@ -64,8 +64,8 @@ all: main-build
 main-build: STM32F411_Basic.elf secondary-outputs
 
 # Tool invocations
-STM32F411_Basic.elf STM32F411_Basic.map: $(OBJS) $(USER_OBJS) C:\Users\ralel\OneDrive\ -\ Iowa\ State\ University\VIS-NIR\ Spectrum\ -\ Documents\Code_CUBEIDE_1_19\STM32F411_Basic\STM32F411CEUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "STM32F411_Basic.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\ralel\OneDrive - Iowa State University\VIS-NIR Spectrum - Documents\Code_CUBEIDE_1_19\STM32F411_Basic\STM32F411CEUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="STM32F411_Basic.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+STM32F411_Basic.elf STM32F411_Basic.map: $(OBJS) $(USER_OBJS) C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\CCD-Driver-Code\STM32F411_Basic\STM32F411CEUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "STM32F411_Basic.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\CCD-Driver-Code\STM32F411_Basic\STM32F411CEUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="STM32F411_Basic.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
