@@ -1,0 +1,18 @@
+{
+  "serial": {
+    "port": "COM3",
+    "baudrate": 115200,
+    "timeout_s": 0.1,
+    "reconnect_on_start": false
+  },
+  "device": {
+    "sample_count": 3694,
+    "preview_points": 4,
+    "adc_resolution_bits": 12,
+    "adc_reference_volts": 3.3
+  },
+  "ui": {
+    "refresh_interval_ms": 500,
+    "max_session_frames": 2000
+  }
+}
