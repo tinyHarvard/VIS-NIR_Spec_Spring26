@@ -12,14 +12,16 @@ class SerialConfig(BaseModel):
 
 class DeviceConfig(BaseModel):
     sample_count: int = 3694
-    preview_points: int = 4
+    effective_start_index: int = 32
+    effective_sample_count: int = 3648
+    trailing_dummy_count: int = 14
     adc_resolution_bits: int = 12
     adc_reference_volts: float = 3.3
 
 
 class UIConfig(BaseModel):
-    refresh_interval_ms: int = 500
-    max_session_frames: int = 2000
+    refresh_interval_ms: int = 8
+    max_session_frames: int = 500
 
 
 class UserConfig(BaseModel):

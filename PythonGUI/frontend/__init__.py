@@ -1,1 +1,1 @@
-"""NiceGUI pages for the spectrometer client UI."""
+"""Frontend entrypoints for the spectrometer client UI."""

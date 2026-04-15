@@ -4,11 +4,15 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from backend.models.frames import SpectrumFrame
 from backend.models.status import SessionStatus
 from backend.storage.export_csv import export_spectra_csv
+
+if TYPE_CHECKING:
+    from backend.processing.spectrum_builder import SpectrumBuilder
 
 
 def utc_now() -> datetime:
@@ -16,11 +20,18 @@ def utc_now() -> datetime:
 
 
 class SessionManager:
-    def __init__(self, export_dir: Path, *, max_frames: int = 2000) -> None:
+    def __init__(
+        self,
+        export_dir: Path,
+        *,
+        max_frames: int = 2000,
+        spectrum_builder: "SpectrumBuilder | None" = None,
+    ) -> None:
         self._lock = Lock()
         self._export_dir = export_dir
         self._max_frames = max_frames
         self._frames: deque[SpectrumFrame] = deque(maxlen=max_frames)
+        self._spectrum_builder = spectrum_builder
         self._session_id = self._new_session_id()
         self._started_at = utc_now()
         self._dropped_frames = 0
@@ -44,6 +55,10 @@ class SessionManager:
                 self._dropped_frames += 1
             self._frames.append(frame)
 
+    def set_spectrum_builder(self, spectrum_builder: "SpectrumBuilder") -> None:
+        with self._lock:
+            self._spectrum_builder = spectrum_builder
+
     def reset(self) -> None:
         with self._lock:
             self._frames.clear()
@@ -56,7 +71,10 @@ class SessionManager:
         with self._lock:
             timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
             path = self._export_dir / f"spectrometer_session_{timestamp}.csv"
-            export_spectra_csv(path, list(self._frames))
+            frames = list(self._frames)
+            spectrum_builder = self._spectrum_builder
+        export_spectra_csv(path, frames, spectrum_builder=spectrum_builder)
+        with self._lock:
             self._last_export_path = str(path)
             return path
 

@@ -22,23 +22,28 @@ class TextLinePacket(BaseModel):
     timestamp: datetime = Field(default_factory=utc_now)
 
 
-class StatusPacket(BaseModel):
-    kind: Literal["status"] = "status"
+class FramePacket(BaseModel):
+    kind: Literal["frame"] = "frame"
     frame_counter: int
-    sample_preview: list[int]
-    dma_half_count: int
-    dma_full_count: int
+    sample_count: int
+    effective_start: int
+    effective_count: int
+    flags: int
+    adc_counts: list[int]
     timestamp: datetime = Field(default_factory=utc_now)
 
 
-DevicePacket: TypeAlias = BannerPacket | TextLinePacket | StatusPacket
+DevicePacket: TypeAlias = BannerPacket | TextLinePacket | FramePacket
 
 
 class SpectrumFrame(BaseModel):
     frame_id: int
     timestamp: datetime = Field(default_factory=utc_now)
-    source: str = "status_preview"
+    source: str = "usb_binary_frame"
     expected_sample_count: int = 3694
+    effective_start_index: int = 32
+    effective_sample_count: int = 3648
+    frame_flags: int = 0
     sample_indices: list[int] = Field(default_factory=list)
     adc_counts: list[int] = Field(default_factory=list)
     volts: list[float] = Field(default_factory=list)

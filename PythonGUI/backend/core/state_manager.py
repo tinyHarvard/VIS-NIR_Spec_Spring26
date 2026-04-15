@@ -6,7 +6,7 @@ from threading import Lock
 from uuid import uuid4
 
 from backend.models.config import CalibrationConfig, UserConfig
-from backend.models.frames import SpectrumFrame, StatusPacket
+from backend.models.frames import FramePacket, SpectrumFrame
 from backend.models.status import AppSnapshot, ConnectionState, DeviceStatus, SessionStatus
 
 
@@ -25,7 +25,11 @@ class StateManager:
         self._lock = Lock()
         self._user_config = user_config
         self._calibration_config = calibration_config
-        self._device_status = DeviceStatus()
+        self._device_status = DeviceStatus(
+            sample_count=user_config.device.sample_count,
+            effective_start_index=user_config.device.effective_start_index,
+            effective_sample_count=user_config.device.effective_sample_count,
+        )
         self._session_status = SessionStatus(session_id=self.new_session_id())
         self._last_spectrum: SpectrumFrame | None = None
         self._logs: deque[str] = deque(maxlen=max_logs)
@@ -41,6 +45,9 @@ class StateManager:
     def set_user_config(self, user_config: UserConfig) -> None:
         with self._lock:
             self._user_config = user_config
+            self._device_status.sample_count = user_config.device.sample_count
+            self._device_status.effective_start_index = user_config.device.effective_start_index
+            self._device_status.effective_sample_count = user_config.device.effective_sample_count
 
     def get_calibration_config(self) -> CalibrationConfig:
         with self._lock:
@@ -83,30 +90,52 @@ class StateManager:
         with self._lock:
             self._logs.append(f"[{timestamp}] {text}")
 
-    def update_from_status_packet(self, packet: StatusPacket) -> None:
+    def reset_frame_tracking(self) -> None:
+        with self._lock:
+            self._device_status.frame_counter = 0
+            self._device_status.sample_count = self._user_config.device.sample_count
+            self._device_status.effective_start_index = self._user_config.device.effective_start_index
+            self._device_status.effective_sample_count = self._user_config.device.effective_sample_count
+            self._device_status.missed_frames = 0
+            self._device_status.last_frame_flags = 0
+            self._device_status.sample_preview = []
+            self._last_spectrum = None
+
+    def update_from_frame_packet(self, packet: FramePacket, *, missed_frames: int = 0) -> None:
         with self._lock:
             self._device_status.last_seen = packet.timestamp
             self._device_status.frame_counter = packet.frame_counter
-            self._device_status.dma_half_count = packet.dma_half_count
-            self._device_status.dma_full_count = packet.dma_full_count
-            self._device_status.sample_preview = list(packet.sample_preview)
+            self._device_status.sample_count = packet.sample_count
+            self._device_status.effective_start_index = packet.effective_start
+            self._device_status.effective_sample_count = packet.effective_count
+            self._device_status.last_frame_flags = packet.flags
+            self._device_status.missed_frames += missed_frames
+            self._device_status.sample_preview = (
+                list(packet.adc_counts[:4]) + list(packet.adc_counts[-4:])
+                if len(packet.adc_counts) >= 8
+                else list(packet.adc_counts)
+            )
             self._device_status.last_message = f"Frame {packet.frame_counter} received."
 
     def set_last_spectrum(self, frame: SpectrumFrame) -> None:
         with self._lock:
             self._last_spectrum = frame
 
+    def latest_spectrum(self) -> SpectrumFrame | None:
+        with self._lock:
+            return self._last_spectrum
+
     def set_session_status(self, session_status: SessionStatus) -> None:
         with self._lock:
             self._session_status = session_status
 
-    def snapshot(self) -> AppSnapshot:
+    def snapshot(self, *, include_spectrum: bool = True) -> AppSnapshot:
         with self._lock:
             return AppSnapshot(
                 device=self._device_status.model_copy(deep=True),
                 session=self._session_status.model_copy(deep=True),
                 spectrum=self._last_spectrum.model_copy(deep=True)
-                if self._last_spectrum is not None
+                if include_spectrum and self._last_spectrum is not None
                 else None,
                 logs=list(self._logs),
             )

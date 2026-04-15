@@ -28,8 +28,11 @@ class DeviceStatus(BaseModel):
     last_message: str | None = None
     last_error: str | None = None
     frame_counter: int = 0
-    dma_half_count: int = 0
-    dma_full_count: int = 0
+    sample_count: int = 0
+    effective_start_index: int = 32
+    effective_sample_count: int = 3648
+    missed_frames: int = 0
+    last_frame_flags: int = 0
     sample_preview: list[int] = Field(default_factory=list)
     firmware_messages: list[str] = Field(default_factory=list)
 

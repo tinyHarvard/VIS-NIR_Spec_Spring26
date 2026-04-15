@@ -7,12 +7,14 @@
   },
   "device": {
     "sample_count": 3694,
-    "preview_points": 4,
+    "effective_start_index": 32,
+    "effective_sample_count": 3648,
+    "trailing_dummy_count": 14,
     "adc_resolution_bits": 12,
     "adc_reference_volts": 3.3
   },
   "ui": {
-    "refresh_interval_ms": 500,
-    "max_session_frames": 2000
+    "refresh_interval_ms": 8,
+    "max_session_frames": 500
   }
 }

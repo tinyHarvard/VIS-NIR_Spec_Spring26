@@ -1,24 +1,27 @@
 # PythonGUI
 
-Python/NiceGUI control app for the VIS-NIR spectrometer.
+Python desktop control app for the VIS-NIR spectrometer.
 
-The current STM32 firmware sends USB CDC text lines like:
+The current STM32 firmware is set up to stream:
 
-```text
-USB CDC online
-TIM2_TRGO (500kHz) -> ADC1 -> DMA, TIM4 ICG (8ms/7.388ms on)
-frame=42 samples=123,456,789,321 half=42 full=42
-```
-
-This app is scaffolded around that real transport today, while leaving clear extension points for:
-
-- full binary spectrum packets
-- MCU command handling
-- wavelength and intensity calibration
-- CSV export and session history
+- full 3694-sample binary USB CDC frames
+- frame start on the CCD ICG low-to-high edge
+- frame end on the CCD ICG high-to-low edge
+- 32 leading dummy outputs, 3648 effective outputs, and 14 trailing dummy outputs
 
 Run with:
 
 ```bash
-uvicorn app:app --reload
+run_app.bat
+```
+
+The app runs as a native Kivy desktop window.
+The old NiceGUI/browser frontend has been removed, so the desktop path is now the only UI.
+If the app detects the old four-sample preview stream from the STM32, it will say so
+explicitly in the UI and logs instead of pretending that those packets are full CCD frames.
+
+Build a standalone executable with:
+
+```bash
+build_standalone.bat
 ```
