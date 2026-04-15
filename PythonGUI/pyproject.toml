@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vis-nir-spec-gui"
+version = "0.1.0"
+description = "Python backend and NiceGUI client for the VIS-NIR spectrometer."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115.0",
+  "nicegui>=2.0.0",
+  "numpy>=2.0.0",
+  "pydantic>=2.8.0",
+  "pyserial>=3.5",
+  "uvicorn>=0.30.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*", "frontend*"]

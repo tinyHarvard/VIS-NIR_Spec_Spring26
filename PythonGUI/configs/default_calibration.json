@@ -1,0 +1,10 @@
+{
+  "apply_dark_subtraction": true,
+  "apply_intensity_correction": true,
+  "wavelength_coefficients": [
+    0.0,
+    1.0
+  ],
+  "dark_offset_counts": [],
+  "intensity_correction": []
+}
