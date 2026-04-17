@@ -10,6 +10,8 @@ from backend.models.frames import BannerPacket, DevicePacket, FramePacket, TextL
 PACKET_MAGIC = b"CCD1"
 PACKET_VERSION = 1
 PACKET_TYPE_FRAME = 1
+LEGACY_PREVIEW_SAMPLE_COUNT = 4
+MAX_BINARY_SAMPLE_COUNT = 8192
 FRAME_HEADER_STRUCT = struct.Struct("<4sBBHIHHHHI")
 
 STATUS_LINE_RE = re.compile(
@@ -20,6 +22,7 @@ STATUS_LINE_RE = re.compile(
 
 
 def parse_device_line(line: str) -> DevicePacket | None:
+    """Purpose: classify one decoded text line. Rationale: legacy preview data and banners share the same CDC text channel."""
     cleaned = line.strip()
     if not cleaned:
         return None
@@ -28,9 +31,9 @@ def parse_device_line(line: str) -> DevicePacket | None:
     if match:
         return FramePacket(
             frame_counter=int(match.group("frame")),
-            sample_count=4,
+            sample_count=LEGACY_PREVIEW_SAMPLE_COUNT,
             effective_start=0,
-            effective_count=4,
+            effective_count=LEGACY_PREVIEW_SAMPLE_COUNT,
             flags=0,
             adc_counts=[
                 int(match.group("s0")),
@@ -52,10 +55,12 @@ def parse_device_line(line: str) -> DevicePacket | None:
 
 
 def encode_raw_command(command_text: str) -> bytes:
+    """Purpose: convert a user command into device bytes. Rationale: USB CDC command writes should use one consistent line format."""
     return f"{command_text.strip()}\n".encode("ascii", errors="ignore")
 
 
 def try_parse_binary_frame(buffer: bytes) -> tuple[FramePacket | None, int]:
+    """Purpose: parse one binary frame from a byte buffer. Rationale: packet rebuilding needs both the parsed frame and consumed length."""
     if len(buffer) < FRAME_HEADER_STRUCT.size:
         return None, 0
 
@@ -78,7 +83,7 @@ def try_parse_binary_frame(buffer: bytes) -> tuple[FramePacket | None, int]:
     if version != PACKET_VERSION or packet_type != PACKET_TYPE_FRAME:
         return None, 1
 
-    if sample_count <= 0 or sample_count > 8192:
+    if sample_count <= 0 or sample_count > MAX_BINARY_SAMPLE_COUNT:
         return None, 1
 
     expected_payload_bytes = sample_count * 2

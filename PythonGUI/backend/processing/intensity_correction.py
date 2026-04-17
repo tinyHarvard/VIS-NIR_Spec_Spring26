@@ -10,6 +10,7 @@ def apply_intensity_correction(
     correction_factors: Sequence[float],
     sample_indices: Sequence[int] | None = None,
 ) -> np.ndarray:
+    """Purpose: apply multiplicative correction factors. Rationale: gain correction should stay separate from raw signal capture."""
     data = np.asarray(values, dtype=float)
     if not correction_factors:
         return data

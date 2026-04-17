@@ -17,6 +17,7 @@ from backend.storage.config_store import ConfigStore
 
 @dataclass(frozen=True)
 class RuntimePaths:
+    """Purpose: hold important runtime filesystem paths. Rationale: startup code should pass one path bundle around."""
     bundle_root: Path
     project_root: Path
     log_dir: Path
@@ -26,6 +27,7 @@ class RuntimePaths:
 
 @dataclass(frozen=True)
 class AppRuntime:
+    """Purpose: hold the main application services. Rationale: the entrypoint and UI should receive one wired runtime object."""
     paths: RuntimePaths
     logger: logging.Logger
     config_store: ConfigStore
@@ -39,6 +41,7 @@ class AppRuntime:
 
 
 def resolve_runtime_paths(app_root: Path) -> RuntimePaths:
+    """Purpose: resolve config, log, and project paths. Rationale: source runs and packaged runs store files differently."""
     is_frozen = bool(getattr(sys, "frozen", False))
     bundle_root = Path(getattr(sys, "_MEIPASS", app_root.resolve()))
     project_root = Path(sys.executable).resolve().parent if is_frozen else app_root.resolve()
@@ -54,6 +57,7 @@ def resolve_runtime_paths(app_root: Path) -> RuntimePaths:
 
 
 def configure_logging(log_file: Path) -> logging.Logger:
+    """Purpose: configure file and console logging. Rationale: debugging needs one shared logging setup for the whole app."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -67,6 +71,7 @@ def configure_logging(log_file: Path) -> logging.Logger:
 
 
 def build_runtime(paths: RuntimePaths, logger: logging.Logger | None = None) -> AppRuntime:
+    """Purpose: create and connect the app services. Rationale: centralizing wiring keeps startup predictable and maintainable."""
     resolved_logger = logger or logging.getLogger("vis_nir_spec")
     config_store = ConfigStore(
         default_path=paths.bundle_root / "configs" / "default_user.json",

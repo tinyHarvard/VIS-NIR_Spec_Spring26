@@ -12,14 +12,18 @@ from backend.processing.wavelength_map import indices_to_wavelengths
 
 
 class CalibrationManager:
+    """Purpose: own calibration settings and apply them. Rationale: processing rules should be centralized instead of scattered."""
     def __init__(self, config: CalibrationConfig) -> None:
+        """Purpose: store the initial calibration config. Rationale: downstream code should read calibration from one managed object."""
         self._config = config
 
     @property
     def config(self) -> CalibrationConfig:
+        """Purpose: expose the current calibration config. Rationale: other services sometimes need read-only access to the settings."""
         return self._config
 
     def update_config(self, config: CalibrationConfig) -> None:
+        """Purpose: replace the calibration config. Rationale: UI edits should update processing behavior without recreating the app."""
         self._config = config
 
     def apply(
@@ -28,6 +32,7 @@ class CalibrationManager:
         adc_counts: Sequence[int],
         device_config: DeviceConfig,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Purpose: run the full calibration pipeline. Rationale: callers should ask one method for corrected outputs instead of chaining helpers manually."""
         raw_counts = np.asarray(adc_counts, dtype=float)
         corrected_counts = raw_counts
 
