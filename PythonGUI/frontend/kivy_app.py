@@ -6,12 +6,14 @@ from typing import Sequence
 
 from kivy.app import App
 from kivy.clock import Clock
+from kivy.core.window import Window
 from kivy.graphics import Color, Line, RoundedRectangle
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.label import Label
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
@@ -19,56 +21,305 @@ from kivy.uix.widget import Widget
 from backend.core.runtime import AppRuntime
 from backend.models.config import CalibrationConfig
 
+# Shared layout metrics.
+# Format:
+# - `*_GAP`, `*_PAD`, `*_HEIGHT`, `*_WIDTH` use Kivy `dp(...)` units so the UI
+#   keeps roughly the same physical sizing across displays.
+APP_GAP = dp(12)
+CARD_GAP = dp(8)
+CARD_PAD = dp(12)
+CONTROL_HEIGHT = dp(38)
+BUTTON_HEIGHT = dp(40)
+INFO_LABEL_HEIGHT = dp(24)
+SMALL_LABEL_HEIGHT = dp(56)
+AXIS_COLUMN_WIDTH = dp(58)
+X_AXIS_HEIGHT = dp(20)
+CHECKBOX_ROW_HEIGHT = dp(32)
+PLOT_INNER_PAD = dp(12)
+PLOT_MIN_DRAW_SIZE = dp(24)
+NARROW_CONTROL_HEIGHT = dp(34)
+NARROW_BUTTON_HEIGHT = dp(36)
+NARROW_INFO_LABEL_HEIGHT = dp(34)
+NARROW_SMALL_LABEL_HEIGHT = dp(88)
+NARROW_CHECKBOX_ROW_HEIGHT = dp(52)
+BUTTON_TEXT_PAD_X = dp(10)
+BUTTON_TEXT_PAD_Y = dp(6)
+
+# Main layout proportions and breakpoints.
+# Format:
+# - ratio values are fractional shares of available space and should usually add
+#   up to about 1.0 for sibling containers.
+# - `RESPONSIVE_BREAKPOINT` is the window width where the app switches from a
+#   side-by-side layout to a stacked layout.
+SIDEBAR_RATIO_WIDE = 0.28
+DETAIL_RATIO_WIDE = 0.72
+LOG_RATIO_WIDE = 0.25
+RESPONSIVE_BREAKPOINT = dp(1200)
+COMPACT_BREAKPOINT = dp(900)
+VERY_COMPACT_BREAKPOINT = dp(720)
+SHORT_HEIGHT_BREAKPOINT = dp(760)
+VERY_SHORT_HEIGHT_BREAKPOINT = dp(620)
+BUTTON_STACK_BREAKPOINT = dp(430)
+
+# UI refresh timing.
+# Format:
+# - values ending in `_S` are seconds.
+# - values ending in `_HZ` are refresh-rate caps in updates per second.
+MIN_WIDE_STATUS_REFRESH_S = 0.1
+MAX_PLOT_REFRESH_HZ = 30.0
+PLOT_REFRESH_STALE_S = 0.25
+
+# Responsive-only fallback sizes.
+# Format:
+# - these are used when the layout is forced into the narrow stacked mode.
+NARROW_LOG_CARD_HEIGHT = dp(220)
+NOTICE_MIN_TEXT_WIDTH = dp(200)
+
+# Plot rendering controls.
+# Format:
+# - vertex counts are plain integers.
+# - line widths are canvas stroke widths in pixels.
+PLOT_CHUNK_MAX_VERTICES = 384
+PLOT_LINE_WIDTH = 1.2
+PLOT_BORDER_WIDTH = 1.0
+GUIDE_LINE_WIDTH = 1.0
+PLOT_CURSOR_LINE_WIDTH = 1.0
+PLOT_CURSOR_MARKER_SIZE = dp(4)
+
+# Theme colors.
+# Format:
+# - RGBA tuples use normalized floats from 0.0 to 1.0 in the order
+#   `(red, green, blue, alpha)`.
+CARD_BACKGROUND_RGBA = (0.97, 0.95, 0.90, 0.96)
+APP_BACKGROUND_RGBA = (1.0, 0.995, 0.975, 1.0)
+CARD_BORDER_RGBA = (0.82, 0.78, 0.69, 1.0)
+GUIDE_LINE_RGBA = (0.82, 0.86, 0.82, 0.8)
+PLOT_LINE_RGBA = (0.06, 0.46, 0.43, 1.0)
+PLOT_CURSOR_RGBA = (0.72, 0.19, 0.17, 0.95)
+PLOT_CURSOR_GUIDE_RGBA = (0.72, 0.19, 0.17, 0.55)
+TEXT_PRIMARY_RGBA = (0.13, 0.19, 0.24, 1.0)
+TEXT_SECONDARY_RGBA = (0.16, 0.20, 0.24, 1.0)
+TEXT_TERTIARY_RGBA = (0.28, 0.32, 0.36, 1.0)
+NOTICE_RGBA = (0.17, 0.21, 0.26, 1.0)
+BUTTON_BACKGROUND_RGBA = (0.06, 0.46, 0.43, 1.0)
+BUTTON_TEXT_RGBA = (1.0, 1.0, 1.0, 1.0)
+
+# Shared typography.
+TITLE_FONT_SP = 24
+SECTION_TITLE_FONT_SP = 18
+BODY_FONT_SP = 14
+SMALL_FONT_SP = 12
+AXIS_FONT_SP = 11
+COMPACT_TITLE_FONT_SP = 20
+COMPACT_SECTION_TITLE_FONT_SP = 16
+COMPACT_BODY_FONT_SP = 12
+COMPACT_SMALL_FONT_SP = 11
+COMPACT_AXIS_FONT_SP = 10
+
+# Header card parameters.
+# Format:
+# - text values control visible wording in the header.
+# - height/font values control the card title and notice line.
+HEADER_CARD_TITLE_TEXT = "[b]VIS-NIR Spectrometer[/b]"
+HEADER_CARD_INITIAL_NOTICE_TEXT = "Waiting for the spectrometer stream."
+HEADER_CARD_HEIGHT = dp(96)
+HEADER_CARD_HEIGHT_COMPACT = dp(84)
+HEADER_TITLE_HEIGHT = dp(40)
+HEADER_NOTICE_HEIGHT = dp(28)
+HEADER_NOTICE_HEIGHT_COMPACT = dp(44)
+HEADER_NOTICE_MIN_TEXT_WIDTH = dp(200)
+
+# Connection card parameters.
+# Format:
+# - these values control all visible text and sizing for the connection card.
+CONNECTION_CARD_TITLE_TEXT = "Connection"
+CONNECTION_CARD_PORT_PLACEHOLDER = "Select COM Port"
+CONNECTION_CARD_NO_PORTS_TEXT = "No COM Ports Found"
+CONNECTION_CARD_STATUS_TEXT = "Status: disconnected"
+CONNECTION_CARD_FIRMWARE_TEXT = "Firmware: waiting for banner"
+CONNECTION_CARD_REFRESH_BUTTON_TEXT = "Refresh Ports"
+CONNECTION_CARD_CONNECT_BUTTON_TEXT = "Connect"
+CONNECTION_CARD_DISCONNECT_BUTTON_TEXT = "Disconnect"
+CONNECTION_CARD_SAVE_BUTTON_TEXT = "Save User Config"
+
+# Calibration card parameters.
+# Format:
+# - these values control the calibration card wording, hint text, and helper copy.
+CALIBRATION_CARD_TITLE_TEXT = "Calibration"
+CALIBRATION_CARD_BACKGROUND_RGBA = (0.94, 0.92, 0.84, 0.98)
+CALIBRATION_CARD_BORDER_RGBA = (0.54, 0.47, 0.24, 1.0)
+CALIBRATION_CARD_WAVELENGTH_HINT = "Wavelength coefficients"
+CALIBRATION_CARD_DARK_TEXT = "Apply dark subtraction"
+CALIBRATION_CARD_INTENSITY_TEXT = "Apply intensity correction"
+CALIBRATION_CARD_SAVE_BUTTON_TEXT = "Save Calibration"
+CALIBRATION_CARD_OPEN_MANAGER_BUTTON_TEXT = "Open Calibration Manager"
+CALIBRATION_CARD_HELPER_TEXT = (
+    "Use the calibration manager to run guided routines, review wavelength terms, and prepare sensor corrections."
+)
+
+# Calibration manager parameters.
+# Format:
+# - these values control the full-screen calibration workflow shown in the main content area.
+CALIBRATION_MANAGER_TITLE_TEXT = "Calibration Manager"
+CALIBRATION_MANAGER_SUBTITLE_TEXT = (
+    "Run guided calibration steps here without squeezing them into the side panel."
+)
+CALIBRATION_MANAGER_BACK_BUTTON_TEXT = "Return To Live Spectrum"
+CALIBRATION_MANAGER_LIST_TITLE_TEXT = "Calibration Routines"
+CALIBRATION_MANAGER_SETTINGS_TITLE_TEXT = "Calibration Settings"
+CALIBRATION_MANAGER_PIXEL_MAPPING_TEXT = "Run Pixel Mapping"
+CALIBRATION_MANAGER_PIXEL_MAPPING_DESC = "Capture several reference light sources and fit pixel positions to known peaks."
+CALIBRATION_MANAGER_DARK_REFERENCE_TEXT = "Capture Dark Reference"
+CALIBRATION_MANAGER_DARK_REFERENCE_DESC = "Measure covered-sensor baseline counts for later subtraction."
+CALIBRATION_MANAGER_INTENSITY_REFERENCE_TEXT = "Capture Intensity Reference"
+CALIBRATION_MANAGER_INTENSITY_REFERENCE_DESC = "Record a flat-field style reference for response correction."
+CALIBRATION_MANAGER_WAVELENGTH_REVIEW_TEXT = "Review Wavelength Fit"
+CALIBRATION_MANAGER_WAVELENGTH_REVIEW_DESC = "Check polynomial coefficients and update the wavelength map."
+
+# Session and command card parameters.
+# Format:
+# - these values control the command/session card wording and button captions.
+COMMAND_CARD_TITLE_TEXT = "Session And Commands"
+COMMAND_CARD_HINT_TEXT = "Raw USB CDC command"
+COMMAND_CARD_SEND_BUTTON_TEXT = "Send Raw Command"
+COMMAND_CARD_EXPORT_BUTTON_TEXT = "Export Session CSV"
+COMMAND_CARD_RESET_BUTTON_TEXT = "Reset Session"
+
+# Spectrum card parameters.
+# Format:
+# - these values control the graph card labels, placeholder text, and status wording.
+SPECTRUM_CARD_TITLE_TEXT = "Live Spectrum"
+SPECTRUM_CARD_WAITING_STREAM_MARKUP = "[color=#6b7280]Waiting for data stream[/color]"
+SPECTRUM_CARD_STREAM_WAITING_TEXT = "Layout: waiting for stream"
+SPECTRUM_CARD_FRAME_LABEL_TEXT = "Frame: n/a"
+SPECTRUM_CARD_LAYOUT_LABEL_TEXT = "Layout: n/a"
+SPECTRUM_CARD_EDGE_LABEL_TEXT = "Edge samples: n/a"
+SPECTRUM_CARD_REFRESH_LABEL_TEXT = "Graph Refresh: n/a"
+SPECTRUM_CARD_SESSION_LABEL_TEXT = "Session: n/a"
+SPECTRUM_CARD_CURSOR_LABEL_TEXT = "Cursor: none"
+SPECTRUM_CARD_FULL_FRAME_MARKUP_TEMPLATE = (
+    "[color=#1c7c54]Full-frame stream detected[/color]  "
+    "Plotting effective pixels {start} to {end}."
+)
+SPECTRUM_CARD_PREVIEW_MARKUP_TEMPLATE = (
+    "[color=#bb3e03]Preview-only stream detected[/color]  "
+    "The STM32 is sending {actual} samples, not {expected}. "
+    "Flash the updated firmware to view the full 3694-pixel line."
+)
+SPECTRUM_CARD_SATURATION_MARKUP_TEMPLATE = (
+    "  [color=#b91c1c]{count} sample(s) are pinned at the ADC maximum.[/color]"
+)
+SPECTRUM_CARD_LAYOUT_FULL_TEMPLATE = (
+    "Layout: total={total} | effective={effective} | leading dummy={leading} | trailing dummy={trailing}"
+)
+SPECTRUM_CARD_LAYOUT_PREVIEW_TEMPLATE = (
+    "Layout: preview stream with {total} samples received. The app is plotting exactly what the device sent."
+)
+
+# Diagnostics card parameters.
+# Format:
+# - these values control the diagnostics/log panel.
+DIAGNOSTICS_CARD_TITLE_TEXT = "Diagnostics"
+DIAGNOSTICS_CARD_TEXT_HEIGHT = dp(220)
+DIAGNOSTICS_CARD_TEXT_HEIGHT_COMPACT = dp(180)
+
+CALIBRATION_CHECKBOX_BOX_WIDTH = dp(42)
+CALIBRATION_CHECKBOX_BOX_HEIGHT = dp(32)
+CALIBRATION_CHECKBOX_SIZE = dp(22)
+CALIBRATION_CHECKBOX_BORDER_RGBA = (0.38, 0.31, 0.10, 1.0)
+CALIBRATION_CHECKBOX_BACKGROUND_RGBA = (1.0, 0.99, 0.94, 1.0)
+CALIBRATION_CHECKBOX_STATE_ON_TEXT = "ON"
+CALIBRATION_CHECKBOX_STATE_OFF_TEXT = "OFF"
+CALIBRATION_CHECKBOX_STATE_ON_RGBA = (0.14, 0.42, 0.24, 1.0)
+CALIBRATION_CHECKBOX_STATE_OFF_RGBA = (0.55, 0.26, 0.16, 1.0)
+
+HEADER_SIDE_PANEL_BUTTON_TEXT = "Hide Side Panel"
+HEADER_SIDE_PANEL_BUTTON_TEXT_HIDDEN = "Show Side Panel"
+HEADER_SIDE_PANEL_BUTTON_WIDTH = dp(160)
+
 
 class Card(BoxLayout):
+    """Purpose: render a styled panel container. Rationale: shared card styling keeps the UI layout consistent."""
     def __init__(self, **kwargs) -> None:
-        super().__init__(orientation="vertical", spacing=dp(8), padding=dp(12), **kwargs)
+        """Purpose: build the card layout and background. Rationale: reusable visual framing should be created once in one widget."""
+        background_rgba = kwargs.pop("background_rgba", CARD_BACKGROUND_RGBA)
+        border_rgba = kwargs.pop("border_rgba", CARD_BORDER_RGBA)
+        # Every card is a vertical stack with shared spacing and padding so the
+        # content blocks line up consistently across the app.
+        super().__init__(orientation="vertical", spacing=CARD_GAP, padding=CARD_PAD, **kwargs)
         with self.canvas.before:
-            Color(0.97, 0.95, 0.90, 0.96)
+            Color(*background_rgba)
             self._background = RoundedRectangle(radius=[18])
+            Color(*border_rgba)
+            self._border = Line(rounded_rectangle=[0, 0, 0, 0, 18], width=1.0)
         self.bind(pos=self._update_background, size=self._update_background)
 
     def _update_background(self, *_args) -> None:
+        """Purpose: resize the rounded background to match the widget. Rationale: Kivy canvas shapes do not track widget size automatically."""
         self._background.pos = self.pos
         self._background.size = self.size
+        self._border.rounded_rectangle = [self.x, self.y, self.width, self.height, 18]
 
 
 class SpectrumPlot(Widget):
+    """Purpose: draw the live spectrum line. Rationale: a custom plot widget gives full control over axes, scaling, and rendering speed."""
     def __init__(self, **kwargs) -> None:
+        """Purpose: initialize plot state and redraw bindings. Rationale: the plot should react whenever data or size changes."""
         super().__init__(**kwargs)
+        # The plot stores raw x/y series and maps them into screen coordinates
+        # during `_redraw`.
         self._x_values: Sequence[int] = ()
         self._y_values: Sequence[int] = ()
         self._adc_min = 0.0
-        self._adc_max = 4095.0
+        self._adc_max = float((1 << 12) - 1)
+        self._cursor_index: int | None = None
+        self._cursor_callback = None
+        self._plot_bounds: tuple[float, float, float, float] | None = None
         self.bind(pos=self._redraw, size=self._redraw)
 
     def set_series(self, x_values: Sequence[int], y_values: Sequence[int]) -> None:
+        """Purpose: store the current x/y series. Rationale: the UI should update the plot by replacing data, not drawing directly."""
         self._x_values = x_values
         self._y_values = y_values
         self._redraw()
 
+    def set_cursor_callback(self, callback) -> None:
+        """Purpose: register a cursor-selection callback. Rationale: the parent UI needs the selected point details without owning the plot math."""
+        self._cursor_callback = callback
+
     def set_adc_range(self, adc_min: int, adc_max: int) -> None:
+        """Purpose: store the y-axis bounds. Rationale: the graph should use the fixed ADC scale chosen by the device config."""
         self._adc_min = float(adc_min)
         self._adc_max = float(max(adc_max, adc_min + 1))
         self._redraw()
 
     def _redraw(self, *_args) -> None:
+        """Purpose: redraw the plot canvas. Rationale: Kivy plots are manual, so any visual update must be rendered explicitly."""
         self.canvas.clear()
         with self.canvas:
-            Color(1.0, 0.995, 0.975, 1.0)
+            # Plot background panel.
+            Color(*APP_BACKGROUND_RGBA)
             RoundedRectangle(pos=self.pos, size=self.size, radius=[16])
 
-            Color(0.82, 0.78, 0.69, 1.0)
-            Line(rounded_rectangle=[self.x, self.y, self.width, self.height, 16], width=1.0)
+            # Plot border so the graph area reads like a chart, not empty space.
+            Color(*CARD_BORDER_RGBA)
+            Line(rounded_rectangle=[self.x, self.y, self.width, self.height, 16], width=PLOT_BORDER_WIDTH)
 
-            if not self._x_values or not self._y_values or self.width <= dp(24) or self.height <= dp(24):
+            if (
+                not self._x_values
+                or not self._y_values
+                or self.width <= PLOT_MIN_DRAW_SIZE
+                or self.height <= PLOT_MIN_DRAW_SIZE
+            ):
                 return
 
-            left = self.x + dp(12)
-            bottom = self.y + dp(12)
-            plot_width = max(self.width - dp(24), 1.0)
-            plot_height = max(self.height - dp(24), 1.0)
+            left = self.x + PLOT_INNER_PAD
+            bottom = self.y + PLOT_INNER_PAD
+            plot_width = max(self.width - (PLOT_INNER_PAD * 2), 1.0)
+            plot_height = max(self.height - (PLOT_INNER_PAD * 2), 1.0)
+            self._plot_bounds = (left, bottom, plot_width, plot_height)
 
+            # Convert sample coordinates into widget pixel coordinates.
             points: list[float] = []
             x_min = float(self._x_values[0])
             x_max = float(self._x_values[-1]) if len(self._x_values) > 1 else float(self._x_values[0] + 1)
@@ -83,19 +334,80 @@ class SpectrumPlot(Widget):
                 y_pos = bottom + ((clamped_sample - self._adc_min) * y_scale)
                 points.extend((x_pos, y_pos))
 
-            Color(0.82, 0.86, 0.82, 0.8)
+            # Reference lines for min, midpoint, max, and the left axis.
+            Color(*GUIDE_LINE_RGBA)
             mid_y = bottom + (plot_height * 0.5)
-            Line(points=[left, bottom, left + plot_width, bottom], width=1.0)
-            Line(points=[left, mid_y, left + plot_width, mid_y], width=1.0)
-            Line(points=[left, bottom + plot_height, left + plot_width, bottom + plot_height], width=1.0)
-            Line(points=[left, bottom, left, bottom + plot_height], width=1.0)
+            Line(points=[left, bottom, left + plot_width, bottom], width=GUIDE_LINE_WIDTH)
+            Line(points=[left, mid_y, left + plot_width, mid_y], width=GUIDE_LINE_WIDTH)
+            Line(points=[left, bottom + plot_height, left + plot_width, bottom + plot_height], width=GUIDE_LINE_WIDTH)
+            Line(points=[left, bottom, left, bottom + plot_height], width=GUIDE_LINE_WIDTH)
 
-            Color(0.06, 0.46, 0.43, 1.0)
-            for chunk in self._iter_line_chunks(points, max_vertices=384):
-                Line(points=chunk, width=1.2)
+            # The spectrum is drawn in chunks because very long single Kivy lines
+            # can render unreliably or become sluggish.
+            Color(*PLOT_LINE_RGBA)
+            for chunk in self._iter_line_chunks(points, max_vertices=PLOT_CHUNK_MAX_VERTICES):
+                Line(points=chunk, width=PLOT_LINE_WIDTH)
+
+            if (
+                self._cursor_index is not None
+                and 0 <= self._cursor_index < len(self._x_values)
+                and 0 <= self._cursor_index < len(self._y_values)
+            ):
+                cursor_x_value = float(self._x_values[self._cursor_index])
+                cursor_y_value = min(max(float(self._y_values[self._cursor_index]), self._adc_min), self._adc_max)
+                cursor_x = left + ((cursor_x_value - x_min) * x_scale)
+                cursor_y = bottom + ((cursor_y_value - self._adc_min) * y_scale)
+                Color(*PLOT_CURSOR_GUIDE_RGBA)
+                Line(points=[cursor_x, bottom, cursor_x, bottom + plot_height], width=PLOT_CURSOR_LINE_WIDTH)
+                Color(*PLOT_CURSOR_RGBA)
+                Line(circle=(cursor_x, cursor_y, PLOT_CURSOR_MARKER_SIZE), width=PLOT_CURSOR_LINE_WIDTH)
+
+    def on_touch_down(self, touch) -> bool:
+        """Purpose: place or move the plot cursor. Rationale: users should be able to inspect one plotted point interactively."""
+        if not self.collide_point(*touch.pos):
+            return super().on_touch_down(touch)
+        return self._update_cursor_from_touch(touch) or super().on_touch_down(touch)
+
+    def on_touch_move(self, touch) -> bool:
+        """Purpose: drag the plot cursor across the graph. Rationale: cursor inspection should work smoothly while dragging."""
+        if touch.grab_current is self:
+            return self._update_cursor_from_touch(touch) or True
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch) -> bool:
+        """Purpose: release the cursor drag state. Rationale: grabbed touches should be released cleanly after interaction."""
+        if touch.grab_current is self:
+            touch.ungrab(self)
+            return True
+        return super().on_touch_up(touch)
+
+    def _update_cursor_from_touch(self, touch) -> bool:
+        """Purpose: convert a touch position into the nearest plotted sample. Rationale: cursor selection should snap to real sample points."""
+        if not self._x_values or not self._y_values or self._plot_bounds is None:
+            return False
+
+        left, _bottom, plot_width, _plot_height = self._plot_bounds
+        if plot_width <= 0:
+            return False
+
+        relative_x = min(max(touch.x, left), left + plot_width) - left
+        fraction = relative_x / plot_width
+        nearest_index = int(round(fraction * max(len(self._x_values) - 1, 0)))
+        nearest_index = min(max(nearest_index, 0), len(self._x_values) - 1)
+        self._cursor_index = nearest_index
+        touch.grab(self)
+        self._redraw()
+
+        if self._cursor_callback is not None:
+            self._cursor_callback(
+                int(self._x_values[nearest_index]),
+                float(self._y_values[nearest_index]),
+            )
+        return True
 
     @staticmethod
     def _iter_line_chunks(points: list[float], *, max_vertices: int) -> list[list[float]]:
+        """Purpose: split a long line into smaller pieces. Rationale: chunking large plots is more reliable for Kivy rendering."""
         if len(points) <= max_vertices * 2:
             return [points]
 
@@ -119,12 +431,15 @@ class SpectrumPlot(Widget):
 
 
 class DesktopSpectrometerApp(App):
+    """Purpose: own the desktop window and all UI behavior. Rationale: Kivy apps usually centralize event handling in one app object."""
     def __init__(self, runtime: AppRuntime, **kwargs) -> None:
+        """Purpose: store the runtime and widget references. Rationale: later refresh methods need access to both services and UI controls."""
         super().__init__(**kwargs)
         self.runtime = runtime
         self.title = "VIS-NIR Spectrometer"
+        # These fields are filled in during `build()` and then reused by button
+        # handlers and refresh timers.
         self.port_spinner: Spinner | None = None
-        self.baud_input: TextInput | None = None
         self.command_input: TextInput | None = None
         self.wavelength_input: TextInput | None = None
         self.dark_checkbox: CheckBox | None = None
@@ -137,6 +452,7 @@ class DesktopSpectrometerApp(App):
         self.edge_label: Label | None = None
         self.refresh_rate_label: Label | None = None
         self.session_label: Label | None = None
+        self.cursor_label: Label | None = None
         self.notice_label: Label | None = None
         self.log_area: TextInput | None = None
         self.plot: SpectrumPlot | None = None
@@ -148,148 +464,218 @@ class DesktopSpectrometerApp(App):
         self.plot_x_end_label: Label | None = None
         self._last_plot_signature: tuple[int | None, int, int | None, int | None] | None = None
         self._plot_update_times: deque[float] = deque(maxlen=48)
+        self._body: BoxLayout | None = None
+        self._left_column: BoxLayout | None = None
+        self._right_column: BoxLayout | None = None
+        self._main_content_container: BoxLayout | None = None
+        self._plot_card: Card | None = None
+        self._calibration_manager_card: Card | None = None
+        self._header_card: Card | None = None
+        self._header_title_label: Label | None = None
+        self._header_top_row: BoxLayout | None = None
+        self._side_panel_button: Button | None = None
+        self._left_scroll: ScrollView | None = None
+        self._connection_buttons: BoxLayout | None = None
+        self._session_buttons: BoxLayout | None = None
+        self._connection_card: Card | None = None
+        self._calibration_card: Card | None = None
+        self._command_card: Card | None = None
+        self._metadata_card: Card | None = None
+        self._diagnostics_card: Card | None = None
+        self._side_panel_cards: list[Card] = []
+        self._side_panel_visible = True
+        self._main_content_mode = "spectrum"
+        self._checkbox_rows: list[BoxLayout] = []
+        self._labels_for_wrapping: list[Label] = []
+        self._text_inputs: list[TextInput] = []
+        self._buttons: list[Button] = []
+        self._section_titles: list[Label] = []
+        self._info_labels: list[Label] = []
+        self._small_labels: list[Label] = []
+        self._axis_labels: list[Label] = []
 
     def build(self) -> BoxLayout:
+        """Purpose: construct the full desktop layout. Rationale: Kivy expects one method to create the root widget tree."""
         user_config = self.runtime.state_manager.get_user_config()
         calibration_config = self.runtime.state_manager.get_calibration_config()
 
+        # Root app shell: header on top, main content below.
         root = BoxLayout(
             orientation="vertical",
-            spacing=dp(12),
-            padding=dp(12),
+            spacing=APP_GAP,
+            padding=APP_GAP,
         )
 
-        header = Card(size_hint_y=None, height=dp(96))
-        header.add_widget(
-            Label(
-                text="[b]VIS-NIR Spectrometer[/b]",
-                markup=True,
-                font_size="24sp",
-                color=(0.13, 0.19, 0.24, 1.0),
-                size_hint_y=None,
-                height=dp(40),
-                halign="left",
-                valign="middle",
-            )
+        # Header card holds the app title and a single high-visibility notice line.
+        header = Card(size_hint_y=None, height=HEADER_CARD_HEIGHT)
+        self._header_card = header
+        header_top_row = BoxLayout(orientation="horizontal", spacing=CARD_GAP, size_hint_y=None, height=HEADER_TITLE_HEIGHT)
+        self._header_top_row = header_top_row
+        self._header_title_label = Label(
+            text=HEADER_CARD_TITLE_TEXT,
+            markup=True,
+            font_size=f"{TITLE_FONT_SP}sp",
+            color=TEXT_PRIMARY_RGBA,
+            size_hint_y=1.0,
+            halign="left",
+            valign="middle",
         )
+        self._configure_label_wrapping(self._header_title_label)
+        header_top_row.add_widget(self._header_title_label)
+        self._side_panel_button = self._button(
+            HEADER_SIDE_PANEL_BUTTON_TEXT,
+            self.toggle_side_panel,
+            size_hint_x=None,
+            width=HEADER_SIDE_PANEL_BUTTON_WIDTH,
+            size_hint_y=1.0,
+        )
+        header_top_row.add_widget(self._side_panel_button)
+        header.add_widget(header_top_row)
         self.notice_label = Label(
-            text="Waiting for the spectrometer stream.",
-            color=(0.17, 0.21, 0.26, 1.0),
+            text=HEADER_CARD_INITIAL_NOTICE_TEXT,
+            color=NOTICE_RGBA,
             halign="left",
             valign="middle",
             size_hint_y=None,
-            height=dp(28),
+            height=HEADER_NOTICE_HEIGHT,
         )
+        self._configure_label_wrapping(self.notice_label)
         header.add_widget(self.notice_label)
         root.add_widget(header)
 
-        body = BoxLayout(spacing=dp(12))
+        # Body is the responsive region that flips between horizontal and vertical.
+        body = BoxLayout(spacing=APP_GAP)
         root.add_widget(body)
+        self._body = body
 
+        left_scroll = ScrollView(
+            do_scroll_x=False,
+            do_scroll_y=True,
+            bar_width=dp(8),
+            scroll_type=["bars", "content"],
+            size_hint_x=SIDEBAR_RATIO_WIDE,
+        )
+        body.add_widget(left_scroll)
+        self._left_scroll = left_scroll
+
+        # Left column: controls and session management.
         left_column = BoxLayout(
             orientation="vertical",
-            spacing=dp(12),
-            size_hint_x=0.34,
+            spacing=APP_GAP,
+            size_hint_y=None,
         )
-        body.add_widget(left_column)
+        left_column.bind(minimum_height=left_column.setter("height"))
+        left_scroll.add_widget(left_column)
+        left_scroll.bind(width=lambda _instance, value: setattr(left_column, "width", value))
+        self._left_column = left_column
 
+        # Right column: graph and diagnostics.
         right_column = BoxLayout(
             orientation="vertical",
-            spacing=dp(12),
-            size_hint_x=0.66,
+            spacing=APP_GAP,
+            size_hint_x=DETAIL_RATIO_WIDE,
         )
         body.add_widget(right_column)
+        self._right_column = right_column
+        main_content_container = BoxLayout(orientation="vertical", size_hint_y=1.0)
+        right_column.add_widget(main_content_container)
+        self._main_content_container = main_content_container
 
-        connection_card = Card()
-        connection_card.add_widget(self._section_title("Connection"))
+        # Connection card keeps device discovery and connect/disconnect actions together.
+        connection_card = Card(size_hint_y=None)
+        connection_card.bind(minimum_height=connection_card.setter("height"))
+        self._connection_card = connection_card
+        self._side_panel_cards.append(connection_card)
+        connection_card.add_widget(self._section_title(CONNECTION_CARD_TITLE_TEXT))
         self.port_spinner = Spinner(
-            text=user_config.serial.port or "Select COM Port",
+            text=user_config.serial.port or CONNECTION_CARD_PORT_PLACEHOLDER,
             values=(),
             size_hint_y=None,
-            height=dp(38),
+            height=CONTROL_HEIGHT,
+            sync_height=True,
         )
+        self.port_spinner.font_size = f"{BODY_FONT_SP}sp"
         connection_card.add_widget(self.port_spinner)
-        self.baud_input = TextInput(
-            text=str(user_config.serial.baudrate),
-            multiline=False,
-            hint_text="Baud rate",
-            size_hint_y=None,
-            height=dp(38),
-        )
-        connection_card.add_widget(self.baud_input)
-        connection_buttons = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
-        connection_buttons.add_widget(self._button("Refresh Ports", self.refresh_ports))
-        connection_buttons.add_widget(self._button("Connect", self.connect_device))
-        connection_buttons.add_widget(self._button("Disconnect", self.disconnect_device))
+        connection_buttons = BoxLayout(size_hint_y=None, height=BUTTON_HEIGHT, spacing=CARD_GAP)
+        self._connection_buttons = connection_buttons
+        connection_buttons.add_widget(self._button(CONNECTION_CARD_REFRESH_BUTTON_TEXT, self.refresh_ports))
+        connection_buttons.add_widget(self._button(CONNECTION_CARD_CONNECT_BUTTON_TEXT, self.connect_device))
+        connection_buttons.add_widget(self._button(CONNECTION_CARD_DISCONNECT_BUTTON_TEXT, self.disconnect_device))
         connection_card.add_widget(connection_buttons)
-        connection_card.add_widget(self._button("Save User Config", self.save_user_config, size_hint_y=None, height=dp(40)))
-        self.status_label = self._info_label("Status: disconnected")
-        self.banner_label = self._info_label("Firmware: waiting for banner")
+        connection_card.add_widget(self._button(CONNECTION_CARD_SAVE_BUTTON_TEXT, self.save_user_config, size_hint_y=None, height=BUTTON_HEIGHT))
+        self.status_label = self._info_label(CONNECTION_CARD_STATUS_TEXT)
+        self.banner_label = self._info_label(CONNECTION_CARD_FIRMWARE_TEXT)
         connection_card.add_widget(self.status_label)
         connection_card.add_widget(self.banner_label)
-        left_column.add_widget(connection_card)
 
-        calibration_card = Card()
-        calibration_card.add_widget(self._section_title("Calibration"))
-        self.wavelength_input = TextInput(
-            text=", ".join(str(value) for value in calibration_config.wavelength_coefficients),
-            multiline=False,
-            hint_text="Wavelength coefficients",
+        # Calibration card holds wavelength fit terms and correction toggles.
+        calibration_card = Card(
             size_hint_y=None,
-            height=dp(38),
+            background_rgba=CALIBRATION_CARD_BACKGROUND_RGBA,
+            border_rgba=CALIBRATION_CARD_BORDER_RGBA,
         )
-        calibration_card.add_widget(self.wavelength_input)
-        self.dark_checkbox = CheckBox(active=calibration_config.apply_dark_subtraction)
-        calibration_card.add_widget(self._checkbox_row("Apply dark subtraction", self.dark_checkbox))
-        self.intensity_checkbox = CheckBox(active=calibration_config.apply_intensity_correction)
-        calibration_card.add_widget(self._checkbox_row("Apply intensity correction", self.intensity_checkbox))
-        calibration_card.add_widget(self._button("Save Calibration", self.save_calibration, size_hint_y=None, height=dp(40)))
+        calibration_card.bind(minimum_height=calibration_card.setter("height"))
+        self._calibration_card = calibration_card
+        self._side_panel_cards.append(calibration_card)
+        calibration_card.add_widget(self._section_title(CALIBRATION_CARD_TITLE_TEXT))
+        calibration_card.add_widget(self._small_label(CALIBRATION_CARD_HELPER_TEXT))
         calibration_card.add_widget(
-            self._small_label(
-                "The desktop plot shows the 3648 effective CCD pixels when full frames are available. "
-                "If the device only streams the old 4-sample preview, the app now calls that out directly."
+            self._button(
+                CALIBRATION_CARD_OPEN_MANAGER_BUTTON_TEXT,
+                self.open_calibration_manager,
+                size_hint_y=None,
+                height=BUTTON_HEIGHT,
             )
         )
-        left_column.add_widget(calibration_card)
 
-        command_card = Card()
-        command_card.add_widget(self._section_title("Session And Commands"))
+        # Session/command card is for export/reset and raw command testing.
+        command_card = Card(size_hint_y=None)
+        command_card.bind(minimum_height=command_card.setter("height"))
+        self._command_card = command_card
+        self._side_panel_cards.append(command_card)
+        command_card.add_widget(self._section_title(COMMAND_CARD_TITLE_TEXT))
         self.command_input = TextInput(
             text="",
             multiline=False,
-            hint_text="Raw USB CDC command",
+            hint_text=COMMAND_CARD_HINT_TEXT,
             size_hint_y=None,
-            height=dp(38),
+            height=CONTROL_HEIGHT,
         )
+        self._configure_text_input(self.command_input)
         command_card.add_widget(self.command_input)
-        command_card.add_widget(self._button("Send Raw Command", self.send_raw_command, size_hint_y=None, height=dp(40)))
-        session_buttons = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
-        session_buttons.add_widget(self._button("Export Session CSV", self.export_session))
-        session_buttons.add_widget(self._button("Reset Session", self.reset_session))
+        command_card.add_widget(self._button(COMMAND_CARD_SEND_BUTTON_TEXT, self.send_raw_command, size_hint_y=None, height=BUTTON_HEIGHT))
+        session_buttons = BoxLayout(size_hint_y=None, height=BUTTON_HEIGHT, spacing=CARD_GAP)
+        self._session_buttons = session_buttons
+        session_buttons.add_widget(self._button(COMMAND_CARD_EXPORT_BUTTON_TEXT, self.export_session))
+        session_buttons.add_widget(self._button(COMMAND_CARD_RESET_BUTTON_TEXT, self.reset_session))
         command_card.add_widget(session_buttons)
-        left_column.add_widget(command_card)
 
+        # Plot card is the main live-view area for the CCD output.
         plot_card = Card()
-        plot_card.add_widget(self._section_title("Live Spectrum"))
+        self._plot_card = plot_card
+        plot_card.add_widget(self._section_title(SPECTRUM_CARD_TITLE_TEXT))
         self.stream_label = Label(
-            text="[color=#6b7280]Waiting for data stream[/color]",
+            text=SPECTRUM_CARD_WAITING_STREAM_MARKUP,
             markup=True,
             size_hint_y=None,
-            height=dp(28),
+            height=HEADER_NOTICE_HEIGHT,
             halign="left",
             valign="middle",
         )
+        self._configure_label_wrapping(self.stream_label)
         plot_card.add_widget(self.stream_label)
-        plot_shell = BoxLayout(orientation="horizontal", spacing=dp(8), size_hint_y=1.0)
+
+        # Plot shell has a fixed-width y-axis column and a flexible plot column.
+        plot_shell = BoxLayout(orientation="horizontal", spacing=CARD_GAP, size_hint_y=1.0)
         y_axis_column = BoxLayout(
             orientation="vertical",
             spacing=dp(0),
             size_hint_x=None,
-            width=dp(58),
+            width=AXIS_COLUMN_WIDTH,
         )
-        self.plot_y_max_label = self._axis_label("4095", valign="top")
-        self.plot_y_mid_label = self._axis_label("2048", valign="middle")
-        self.plot_y_min_label = self._axis_label("0", valign="bottom")
+        self.plot_y_max_label = self._axis_label("1.0", valign="top")
+        self.plot_y_mid_label = self._axis_label("0.5", valign="middle")
+        self.plot_y_min_label = self._axis_label("0.0", valign="bottom")
         y_axis_column.add_widget(self.plot_y_max_label)
         y_axis_column.add_widget(Widget())
         y_axis_column.add_widget(self.plot_y_mid_label)
@@ -297,13 +683,14 @@ class DesktopSpectrometerApp(App):
         y_axis_column.add_widget(self.plot_y_min_label)
         plot_shell.add_widget(y_axis_column)
 
+        # Plot column contains the graph canvas and the x-axis labels below it.
         plot_column = BoxLayout(orientation="vertical", spacing=dp(4), size_hint_y=1.0)
         self.plot = SpectrumPlot(size_hint_y=1.0)
-        adc_max_count = (1 << user_config.device.adc_resolution_bits) - 1
-        self.plot.set_adc_range(0, adc_max_count)
+        self.plot.set_cursor_callback(self._handle_plot_cursor)
+        self.plot.set_adc_range(0.0, 1.0)
         plot_column.add_widget(self.plot)
 
-        x_axis_row = BoxLayout(size_hint_y=None, height=dp(20))
+        x_axis_row = BoxLayout(size_hint_y=None, height=X_AXIS_HEIGHT)
         self.plot_x_start_label = self._axis_label("0", halign="left")
         self.plot_x_mid_label = self._axis_label("0", halign="center")
         self.plot_x_end_label = self._axis_label("0", halign="right")
@@ -314,55 +701,146 @@ class DesktopSpectrometerApp(App):
 
         plot_shell.add_widget(plot_column)
         plot_card.add_widget(plot_shell)
-        self.frame_label = self._info_label("Frame: n/a")
-        self.layout_label = self._info_label("Layout: n/a")
-        self.edge_label = self._info_label("Edge samples: n/a")
-        self.refresh_rate_label = self._info_label("Graph Refresh: n/a")
-        self.session_label = self._info_label("Session: n/a")
-        plot_card.add_widget(self.frame_label)
-        plot_card.add_widget(self.layout_label)
-        plot_card.add_widget(self.edge_label)
-        plot_card.add_widget(self.refresh_rate_label)
-        plot_card.add_widget(self.session_label)
-        right_column.add_widget(plot_card)
+        self._plot_card = plot_card
 
-        log_card = Card(size_hint_y=0.34)
-        log_card.add_widget(self._section_title("Diagnostics"))
-        self.log_area = TextInput(readonly=True, multiline=True)
-        log_card.add_widget(self.log_area)
-        right_column.add_widget(log_card)
+        calibration_manager_card = Card()
+        calibration_manager_card.add_widget(self._section_title(CALIBRATION_MANAGER_TITLE_TEXT))
+        calibration_manager_card.add_widget(self._small_label(CALIBRATION_MANAGER_SUBTITLE_TEXT))
+        calibration_manager_card.add_widget(
+            self._button(
+                CALIBRATION_MANAGER_BACK_BUTTON_TEXT,
+                self.show_spectrum_view,
+                size_hint_y=None,
+                height=BUTTON_HEIGHT,
+            )
+        )
+
+        calibration_settings_card = Card(size_hint_y=None)
+        calibration_settings_card.bind(minimum_height=calibration_settings_card.setter("height"))
+        calibration_settings_card.add_widget(self._section_title(CALIBRATION_MANAGER_SETTINGS_TITLE_TEXT))
+        self.wavelength_input = TextInput(
+            text=", ".join(str(value) for value in calibration_config.wavelength_coefficients),
+            multiline=False,
+            hint_text=CALIBRATION_CARD_WAVELENGTH_HINT,
+            size_hint_y=None,
+            height=CONTROL_HEIGHT,
+        )
+        self._configure_text_input(self.wavelength_input)
+        calibration_settings_card.add_widget(self.wavelength_input)
+        self.dark_checkbox = CheckBox(active=calibration_config.apply_dark_subtraction)
+        self.dark_checkbox.bind(active=lambda *_args: self.preview_calibration())
+        calibration_settings_card.add_widget(self._checkbox_row(CALIBRATION_CARD_DARK_TEXT, self.dark_checkbox))
+        self.intensity_checkbox = CheckBox(active=calibration_config.apply_intensity_correction)
+        self.intensity_checkbox.bind(active=lambda *_args: self.preview_calibration())
+        calibration_settings_card.add_widget(self._checkbox_row(CALIBRATION_CARD_INTENSITY_TEXT, self.intensity_checkbox))
+        calibration_settings_card.add_widget(
+            self._button(CALIBRATION_CARD_SAVE_BUTTON_TEXT, self.save_calibration, size_hint_y=None, height=BUTTON_HEIGHT)
+        )
+        calibration_manager_card.add_widget(calibration_settings_card)
+
+        calibration_list_card = Card(size_hint_y=None)
+        calibration_list_card.bind(minimum_height=calibration_list_card.setter("height"))
+        calibration_list_card.add_widget(self._section_title(CALIBRATION_MANAGER_LIST_TITLE_TEXT))
+        calibration_list_card.add_widget(
+            self._calibration_action_row(
+                CALIBRATION_MANAGER_PIXEL_MAPPING_TEXT,
+                CALIBRATION_MANAGER_PIXEL_MAPPING_DESC,
+                "pixel_mapping",
+            )
+        )
+        calibration_list_card.add_widget(
+            self._calibration_action_row(
+                CALIBRATION_MANAGER_DARK_REFERENCE_TEXT,
+                CALIBRATION_MANAGER_DARK_REFERENCE_DESC,
+                "dark_reference",
+            )
+        )
+        calibration_list_card.add_widget(
+            self._calibration_action_row(
+                CALIBRATION_MANAGER_INTENSITY_REFERENCE_TEXT,
+                CALIBRATION_MANAGER_INTENSITY_REFERENCE_DESC,
+                "intensity_reference",
+            )
+        )
+        calibration_list_card.add_widget(
+            self._calibration_action_row(
+                CALIBRATION_MANAGER_WAVELENGTH_REVIEW_TEXT,
+                CALIBRATION_MANAGER_WAVELENGTH_REVIEW_DESC,
+                "wavelength_review",
+            )
+        )
+        calibration_manager_card.add_widget(calibration_list_card)
+        self._calibration_manager_card = calibration_manager_card
+        self._refresh_main_content()
+
+        metadata_card = Card(size_hint_y=None)
+        metadata_card.bind(minimum_height=metadata_card.setter("height"))
+        self._metadata_card = metadata_card
+        self._side_panel_cards.append(metadata_card)
+        metadata_card.add_widget(self._section_title("Frame Data"))
+        self.frame_label = self._info_label(SPECTRUM_CARD_FRAME_LABEL_TEXT)
+        self.layout_label = self._info_label(SPECTRUM_CARD_LAYOUT_LABEL_TEXT)
+        self.edge_label = self._info_label(SPECTRUM_CARD_EDGE_LABEL_TEXT)
+        self.refresh_rate_label = self._info_label(SPECTRUM_CARD_REFRESH_LABEL_TEXT)
+        self.session_label = self._info_label(SPECTRUM_CARD_SESSION_LABEL_TEXT)
+        self.cursor_label = self._info_label(SPECTRUM_CARD_CURSOR_LABEL_TEXT)
+        metadata_card.add_widget(self.frame_label)
+        metadata_card.add_widget(self.layout_label)
+        metadata_card.add_widget(self.edge_label)
+        metadata_card.add_widget(self.refresh_rate_label)
+        metadata_card.add_widget(self.session_label)
+        metadata_card.add_widget(self.cursor_label)
+
+        diagnostics_card = Card(size_hint_y=None)
+        diagnostics_card.bind(minimum_height=diagnostics_card.setter("height"))
+        self._diagnostics_card = diagnostics_card
+        self._side_panel_cards.append(diagnostics_card)
+        diagnostics_card.add_widget(self._section_title(DIAGNOSTICS_CARD_TITLE_TEXT))
+        self.log_area = TextInput(readonly=True, multiline=True, size_hint_y=None, height=DIAGNOSTICS_CARD_TEXT_HEIGHT)
+        self._configure_text_input(self.log_area)
+        diagnostics_card.add_widget(self.log_area)
+
+        self._refresh_side_panel_cards()
+
+        Window.bind(size=self._apply_responsive_layout)
+        self._apply_responsive_layout()
 
         return root
 
     def on_start(self) -> None:
+        """Purpose: start periodic refresh tasks after the UI loads. Rationale: timers should only begin once the window exists."""
         self.refresh_ports()
+        # Plot refresh is allowed to run fast; status/log refresh runs slower to
+        # keep the UI responsive.
         plot_refresh_s = min(
             max(self.runtime.state_manager.get_user_config().ui.refresh_interval_ms / 1000.0, 0.001),
-            1.0 / 125.0,
+            1.0 / MAX_PLOT_REFRESH_HZ,
         )
-        status_refresh_s = max(0.1, plot_refresh_s * 12.0)
+        status_refresh_s = max(MIN_WIDE_STATUS_REFRESH_S, plot_refresh_s * 12.0)
         Clock.schedule_interval(self.refresh_plot, plot_refresh_s)
         Clock.schedule_interval(self.refresh_status, status_refresh_s)
         self.refresh_view()
         if self.runtime.state_manager.get_user_config().serial.reconnect_on_start:
             Clock.schedule_once(lambda *_args: self.connect_device(), 0.1)
         try:
-            from kivy.core.window import Window
-
             Window.maximize()
         except Exception:
             pass
 
     def on_stop(self) -> None:
+        """Purpose: clean up the device connection on app exit. Rationale: the serial port should not be left open after closing the window."""
+        Window.unbind(size=self._apply_responsive_layout)
         if self.runtime.transport.is_connected():
             self.runtime.command_service.disconnect()
 
     def refresh_ports(self, *_args) -> None:
+        """Purpose: refresh the COM-port choices shown in the UI. Rationale: devices may be plugged in or removed while the app is open."""
         ports = self.runtime.command_service.list_serial_ports()
         devices = [item["device"] for item in ports]
         if self.port_spinner is None:
             return
 
+        # Prefer the saved port, then the current selection, then the first device found.
         self.port_spinner.values = devices
         remembered = self.runtime.state_manager.get_user_config().serial.port
         current = self.port_spinner.text if self.port_spinner.text in devices else None
@@ -373,54 +851,65 @@ class DesktopSpectrometerApp(App):
         elif devices:
             self.port_spinner.text = devices[0]
         else:
-            self.port_spinner.text = "No COM Ports Found"
+            self.port_spinner.text = CONNECTION_CARD_NO_PORTS_TEXT
 
         self.set_notice(f"Detected {len(devices)} serial port(s).")
 
     def connect_device(self, *_args) -> None:
+        """Purpose: connect using the current UI settings. Rationale: button clicks should flow through one method that validates input first."""
         port = None if self.port_spinner is None else self.port_spinner.text
-        if port == "No COM Ports Found":
+        if port == CONNECTION_CARD_NO_PORTS_TEXT:
             port = None
-        baudrate = 115200
-        if self.baud_input is not None:
-            try:
-                baudrate = int(self.baud_input.text.strip() or "115200")
-            except ValueError:
-                self.set_notice("Baud rate must be an integer.")
-                return
 
-        result = self.runtime.command_service.connect(port=port, baudrate=baudrate)
+        result = self.runtime.command_service.connect(port=port)
         self.set_notice(result.message)
         self.refresh_view()
 
     def disconnect_device(self, *_args) -> None:
+        """Purpose: disconnect from the current device. Rationale: the UI should expose a direct way to end the session cleanly."""
         result = self.runtime.command_service.disconnect()
         self.set_notice(result.message)
         self.refresh_view()
 
     def save_user_config(self, *_args) -> None:
-        if self.port_spinner is None or self.baud_input is None:
+        """Purpose: save current connection and UI settings. Rationale: user preferences should persist across restarts."""
+        if self.port_spinner is None:
             return
 
         config = self.runtime.state_manager.get_user_config()
-        config.serial.port = None if self.port_spinner.text == "No COM Ports Found" else self.port_spinner.text
-        try:
-            config.serial.baudrate = int(self.baud_input.text.strip() or str(config.serial.baudrate))
-        except ValueError:
-            self.set_notice("Baud rate must be an integer.")
-            return
-
+        config.serial.port = None if self.port_spinner.text == CONNECTION_CARD_NO_PORTS_TEXT else self.port_spinner.text
         path = self.runtime.config_store.save(config)
         self.runtime.command_service.apply_user_config(config)
         self.set_notice(f"Saved user config to {path}.")
 
     def save_calibration(self, *_args) -> None:
+        """Purpose: save the current calibration settings. Rationale: calibration changes should be editable from the desktop UI."""
+        config = self._read_calibration_form()
+        if config is None:
+            return
+
+        path = self.runtime.calibration_store.save(config)
+        self.runtime.command_service.apply_calibration_config(config)
+        self.set_notice(f"Saved calibration config to {path}.")
+
+    def preview_calibration(self, *_args) -> None:
+        """Purpose: apply current calibration form settings to the live display. Rationale: toggles should visibly affect the plot immediately, even before saving."""
+        config = self._read_calibration_form()
+        if config is None:
+            return
+
+        self.runtime.command_service.apply_calibration_config(config)
+        self.refresh_view()
+        self.set_notice("Applied calibration changes to the live display.")
+
+    def _read_calibration_form(self) -> CalibrationConfig | None:
+        """Purpose: read the calibration controls into a config object. Rationale: preview and save should share one form-reading path."""
         if (
             self.wavelength_input is None
             or self.dark_checkbox is None
             or self.intensity_checkbox is None
         ):
-            return
+            return None
 
         try:
             coefficients = [
@@ -430,33 +919,33 @@ class DesktopSpectrometerApp(App):
             ]
         except ValueError:
             self.set_notice("Calibration coefficients must be comma-separated numbers.")
-            return
+            return None
 
         existing = self.runtime.state_manager.get_calibration_config()
-        config = CalibrationConfig(
+        return CalibrationConfig(
             apply_dark_subtraction=bool(self.dark_checkbox.active),
             apply_intensity_correction=bool(self.intensity_checkbox.active),
             wavelength_coefficients=coefficients,
             dark_offset_counts=existing.dark_offset_counts,
             intensity_correction=existing.intensity_correction,
         )
-        path = self.runtime.calibration_store.save(config)
-        self.runtime.command_service.apply_calibration_config(config)
-        self.set_notice(f"Saved calibration config to {path}.")
 
     def export_session(self, *_args) -> None:
+        """Purpose: export buffered frames to CSV. Rationale: captured data should be easy to save without leaving the app."""
         path = self.runtime.session_manager.export_csv()
         self.runtime.command_service.refresh_session_status()
         self.set_notice(f"Exported session to {path}.")
         self.refresh_view()
 
     def reset_session(self, *_args) -> None:
+        """Purpose: clear the current session buffer. Rationale: users often want a fresh capture run without restarting the app."""
         self.runtime.session_manager.reset()
         self.runtime.command_service.refresh_session_status()
         self.set_notice("Session buffer cleared.")
         self.refresh_view()
 
     def send_raw_command(self, *_args) -> None:
+        """Purpose: send a raw command string to the device. Rationale: advanced control and debugging should be available from the UI."""
         if self.command_input is None:
             return
         result = self.runtime.command_service.send_raw_command(self.command_input.text)
@@ -464,8 +953,10 @@ class DesktopSpectrometerApp(App):
         self.refresh_view()
 
     def refresh_status(self, *_args) -> None:
+        """Purpose: refresh slower-changing text fields. Rationale: status labels and logs do not need the same rate as the plot."""
         snapshot = self.runtime.state_manager.snapshot(include_spectrum=False)
 
+        # Connection and firmware banner fields summarize the device state.
         if self.status_label is not None:
             port_text = snapshot.device.port or ""
             self.status_label.text = f"Status: {snapshot.device.connection_state.value} {port_text}".strip()
@@ -497,10 +988,11 @@ class DesktopSpectrometerApp(App):
             self.log_area.text = "\n".join(snapshot.logs[-20:])
 
     def refresh_plot(self, *_args) -> None:
+        """Purpose: refresh the live spectrum graph and its labels. Rationale: the plot is the fastest-changing part of the UI."""
         spectrum = self.runtime.state_manager.latest_spectrum()
         device_config = self.runtime.state_manager.get_user_config().device
         expected_samples = device_config.sample_count
-        adc_max_count = (1 << device_config.adc_resolution_bits) - 1
+        normalized_max = 1.0
         effective_start_default = device_config.effective_start_index
         effective_end_default = max(
             effective_start_default + device_config.effective_sample_count - 1,
@@ -509,60 +1001,62 @@ class DesktopSpectrometerApp(App):
 
         display_indices: list[int] = []
         display_values: list[int] = []
-        layout_text = "Layout: waiting for stream"
-        stream_markup = "[color=#6b7280]Waiting for data stream[/color]"
+        layout_text = SPECTRUM_CARD_STREAM_WAITING_TEXT
+        stream_markup = SPECTRUM_CARD_WAITING_STREAM_MARKUP
 
         if spectrum is not None:
-            total_samples = len(spectrum.adc_counts)
+            plot_source = spectrum.live_display_counts or spectrum.adc_counts
+            total_samples = len(plot_source)
             full_frame_ready = total_samples >= expected_samples
 
             if full_frame_ready:
+                # Only the effective CCD pixels are plotted for full frames, so
+                # dummy leading/trailing clocks do not dominate the display.
                 start = spectrum.effective_start_index
                 end = min(
                     start + spectrum.effective_sample_count,
                     total_samples,
                 )
                 display_indices = range(start, end)
-                display_values = spectrum.adc_counts[start:end]
-                stream_markup = (
-                    "[color=#1c7c54]Full-frame stream detected[/color]  "
-                    f"Plotting effective pixels {start} to {max(end - 1, start)}."
+                display_values = plot_source[start:end]
+                stream_markup = SPECTRUM_CARD_FULL_FRAME_MARKUP_TEMPLATE.format(
+                    start=start,
+                    end=max(end - 1, start),
                 )
-                layout_text = (
-                    f"Layout: total={total_samples} | effective={len(display_values)} "
-                    f"| leading dummy={start} | trailing dummy={max(total_samples - end, 0)}"
+                layout_text = SPECTRUM_CARD_LAYOUT_FULL_TEMPLATE.format(
+                    total=total_samples,
+                    effective=len(display_values),
+                    leading=start,
+                    trailing=max(total_samples - end, 0),
                 )
             else:
+                # Preview-only mode intentionally plots the exact short stream the
+                # device sent so the UI does not invent missing data.
                 display_indices = range(total_samples)
-                display_values = spectrum.adc_counts
-                stream_markup = (
-                    "[color=#bb3e03]Preview-only stream detected[/color]  "
-                    f"The STM32 is sending {total_samples} samples, not {expected_samples}. "
-                    "Flash the updated firmware to view the full 3694-pixel line."
+                display_values = plot_source
+                stream_markup = SPECTRUM_CARD_PREVIEW_MARKUP_TEMPLATE.format(
+                    actual=total_samples,
+                    expected=expected_samples,
                 )
-                layout_text = (
-                    f"Layout: preview stream with {total_samples} samples received. "
-                    "The app is plotting exactly what the device sent."
-                )
+                layout_text = SPECTRUM_CARD_LAYOUT_PREVIEW_TEMPLATE.format(total=total_samples)
 
             if display_values:
-                saturated_samples = sum(1 for value in display_values if value >= adc_max_count)
+                # Saturation feedback helps explain why the graph may look flat
+                # under strong illumination.
+                saturated_samples = sum(1 for value in display_values if value >= normalized_max)
                 if saturated_samples > 0:
-                    stream_markup += (
-                        "  "
-                        f"[color=#b91c1c]{saturated_samples} sample(s) are pinned at the ADC maximum.[/color]"
-                    )
+                    stream_markup += SPECTRUM_CARD_SATURATION_MARKUP_TEMPLATE.format(count=saturated_samples)
 
         if self.stream_label is not None:
             self.stream_label.text = stream_markup
         if self.layout_label is not None:
             self.layout_label.text = layout_text
         if self.plot_y_max_label is not None:
-            self.plot_y_max_label.text = str(adc_max_count)
+            self.plot_y_max_label.text = "1.0"
         if self.plot_y_mid_label is not None:
-            self.plot_y_mid_label.text = str(adc_max_count // 2)
+            self.plot_y_mid_label.text = "0.5"
         if self.plot_y_min_label is not None:
-            self.plot_y_min_label.text = "0"
+            self.plot_y_min_label.text = "0.0"
         if display_indices:
             x_start = display_indices[0]
             x_mid = display_indices[len(display_indices) // 2]
@@ -578,7 +1072,9 @@ class DesktopSpectrometerApp(App):
         if self.plot_x_end_label is not None:
             self.plot_x_end_label.text = str(x_end)
         if self.plot is not None:
-            self.plot.set_adc_range(0, adc_max_count)
+            self.plot.set_adc_range(0.0, normalized_max)
+            # This signature prevents redrawing the same spectrum repeatedly when
+            # the timer fires faster than new frames arrive.
             plot_signature = (
                 spectrum.frame_id if spectrum is not None else None,
                 len(display_values),
@@ -594,23 +1090,68 @@ class DesktopSpectrometerApp(App):
             self.refresh_rate_label.text = (
                 f"Graph Refresh: {refresh_hz:.1f} Hz"
                 if refresh_hz > 0.0
-                else "Graph Refresh: n/a"
+                else SPECTRUM_CARD_REFRESH_LABEL_TEXT
             )
 
     def refresh_view(self, *_args) -> None:
+        """Purpose: refresh both status and plot sections together. Rationale: some UI actions need an immediate full refresh."""
         self.refresh_status()
         self.refresh_plot()
 
+    def _handle_plot_cursor(self, sample_index: int, sample_value: float) -> None:
+        """Purpose: show the currently selected plot point. Rationale: cursor readout should be visible outside the graph canvas."""
+        if self.cursor_label is not None:
+            self.cursor_label.text = f"Cursor: pixel={sample_index} value={sample_value:.4f}"
+
+    def _refresh_main_content(self) -> None:
+        """Purpose: swap the main content view. Rationale: the app should show either the live spectrum or the calibration manager, not both."""
+        if self._main_content_container is None:
+            return
+
+        self._main_content_container.clear_widgets()
+        if self._main_content_mode == "calibration" and self._calibration_manager_card is not None:
+            self._main_content_container.add_widget(self._calibration_manager_card)
+        elif self._plot_card is not None:
+            self._main_content_container.add_widget(self._plot_card)
+
+    def open_calibration_manager(self, *_args) -> None:
+        """Purpose: open the calibration manager in the main content area. Rationale: complex calibration work deserves the full workspace."""
+        self._main_content_mode = "calibration"
+        self._refresh_main_content()
+        self.set_notice("Calibration manager opened.")
+
+    def show_spectrum_view(self, *_args) -> None:
+        """Purpose: return to the live spectrum view. Rationale: users need a quick way back to the main measurement screen."""
+        self._main_content_mode = "spectrum"
+        self._refresh_main_content()
+        self.set_notice("Returned to live spectrum view.")
+
+    def _refresh_side_panel_cards(self) -> None:
+        """Purpose: rebuild the scrollable side panel. Rationale: the side panel should always contain the full card set when visible."""
+        if self._left_column is None:
+            return
+
+        self._left_column.clear_widgets()
+        for card in self._side_panel_cards:
+            self._left_column.add_widget(card)
+
+    def toggle_side_panel(self, *_args) -> None:
+        """Purpose: show or hide the side panel. Rationale: one header control should let the graph expand to full width on demand."""
+        self._side_panel_visible = not self._side_panel_visible
+        self._apply_responsive_layout()
+
     def _record_plot_update(self) -> None:
+        """Purpose: record when the plot changed. Rationale: measured refresh speed should reflect real redraw activity."""
         self._plot_update_times.append(perf_counter())
 
     def _current_plot_refresh_hz(self) -> float:
+        """Purpose: estimate the plot refresh rate. Rationale: users need feedback on how quickly new frames are reaching the graph."""
         if len(self._plot_update_times) < 2:
             return 0.0
 
         newest = self._plot_update_times[-1]
         oldest = self._plot_update_times[0]
-        if perf_counter() - newest > 0.25:
+        if perf_counter() - newest > PLOT_REFRESH_STALE_S:
             return 0.0
 
         elapsed_s = newest - oldest
@@ -620,86 +1161,331 @@ class DesktopSpectrometerApp(App):
         return (len(self._plot_update_times) - 1) / elapsed_s
 
     def set_notice(self, message: str) -> None:
+        """Purpose: update the header notice text. Rationale: one central status message keeps user feedback easy to find."""
         if self.notice_label is not None:
             self.notice_label.text = message
 
-    @staticmethod
-    def _section_title(text: str) -> Label:
-        return Label(
+    def _apply_responsive_layout(self, *_args) -> None:
+        """Purpose: switch between wide and narrow layouts. Rationale: the UI should remain usable on both large and smaller windows."""
+        if (
+            self._body is None
+            or self._left_column is None
+            or self._right_column is None
+            or self._left_scroll is None
+        ):
+            return
+
+        # Wide mode uses side-by-side columns; narrow mode stacks everything and
+        # keeps the side panel optional so the plot can use the full width.
+        narrow_layout = Window.width < RESPONSIVE_BREAKPOINT
+        short_layout = Window.height < SHORT_HEIGHT_BREAKPOINT
+        compact_layout = Window.width < COMPACT_BREAKPOINT or short_layout
+        stack_connection_buttons = Window.width < BUTTON_STACK_BREAKPOINT
+        stack_session_buttons = Window.width < BUTTON_STACK_BREAKPOINT
+        self._body.orientation = "vertical" if narrow_layout else "horizontal"
+        side_panel_active = self._side_panel_visible
+        self._left_scroll.size_hint_x = (1.0 if narrow_layout else SIDEBAR_RATIO_WIDE) if side_panel_active else None
+        self._left_scroll.width = 0 if side_panel_active else 0
+        self._left_scroll.size_hint_y = None if (narrow_layout and side_panel_active) else 1.0
+        self._left_scroll.height = dp(320) if (narrow_layout and side_panel_active) else 0
+        self._left_scroll.opacity = 1.0 if side_panel_active else 0.0
+        self._left_scroll.disabled = not side_panel_active
+        self._right_column.size_hint_x = 1.0 if (narrow_layout or not side_panel_active) else DETAIL_RATIO_WIDE
+        self._right_column.size_hint_y = 1.0
+        if self._connection_buttons is not None:
+            self._connection_buttons.orientation = "vertical" if stack_connection_buttons else "horizontal"
+            self._connection_buttons.height = (
+                (NARROW_BUTTON_HEIGHT * len(self._connection_buttons.children)) + (CARD_GAP * (len(self._connection_buttons.children) - 1))
+                if stack_connection_buttons
+                else BUTTON_HEIGHT
+            )
+        if self._session_buttons is not None:
+            self._session_buttons.orientation = "vertical" if stack_session_buttons else "horizontal"
+            self._session_buttons.height = (
+                (NARROW_BUTTON_HEIGHT * len(self._session_buttons.children)) + (CARD_GAP * (len(self._session_buttons.children) - 1))
+                if stack_session_buttons
+                else BUTTON_HEIGHT
+            )
+
+        title_font_sp = COMPACT_TITLE_FONT_SP if compact_layout else TITLE_FONT_SP
+        section_font_sp = COMPACT_SECTION_TITLE_FONT_SP if compact_layout else SECTION_TITLE_FONT_SP
+        body_font_sp = COMPACT_BODY_FONT_SP if compact_layout else BODY_FONT_SP
+        small_font_sp = COMPACT_SMALL_FONT_SP if compact_layout else SMALL_FONT_SP
+        axis_font_sp = COMPACT_AXIS_FONT_SP if compact_layout else AXIS_FONT_SP
+        control_height = NARROW_CONTROL_HEIGHT if compact_layout else CONTROL_HEIGHT
+        button_height = NARROW_BUTTON_HEIGHT if compact_layout else BUTTON_HEIGHT
+        info_height = NARROW_INFO_LABEL_HEIGHT if compact_layout else INFO_LABEL_HEIGHT
+        small_height = NARROW_SMALL_LABEL_HEIGHT if compact_layout else SMALL_LABEL_HEIGHT
+        checkbox_height = NARROW_CHECKBOX_ROW_HEIGHT if compact_layout else CHECKBOX_ROW_HEIGHT
+        header_height = HEADER_CARD_HEIGHT_COMPACT if compact_layout else HEADER_CARD_HEIGHT
+        notice_height = HEADER_NOTICE_HEIGHT_COMPACT if compact_layout else HEADER_NOTICE_HEIGHT
+        for card in self._side_panel_cards:
+            card.spacing = dp(6) if compact_layout else CARD_GAP
+            card.padding = dp(10) if compact_layout else CARD_PAD
+        if self._header_card is not None:
+            self._header_card.height = header_height
+        if self._header_top_row is not None:
+            self._header_top_row.height = HEADER_TITLE_HEIGHT
+        if self._header_title_label is not None:
+            self._header_title_label.font_size = f"{title_font_sp}sp"
+            self._header_title_label.height = max(HEADER_TITLE_HEIGHT, notice_height)
+        if self.notice_label is not None:
+            self.notice_label.height = notice_height
+            self.notice_label.font_size = f"{body_font_sp}sp"
+            self.notice_label.text_size = (max(Window.width - (APP_GAP * 4), HEADER_NOTICE_MIN_TEXT_WIDTH), None)
+        if self._side_panel_button is not None:
+            self._side_panel_button.text = (
+                HEADER_SIDE_PANEL_BUTTON_TEXT if side_panel_active else HEADER_SIDE_PANEL_BUTTON_TEXT_HIDDEN
+            )
+            self._side_panel_button.height = button_height
+            self._side_panel_button.font_size = f"{body_font_sp}sp"
+        if self.log_area is not None:
+            self.log_area.height = DIAGNOSTICS_CARD_TEXT_HEIGHT_COMPACT if compact_layout else DIAGNOSTICS_CARD_TEXT_HEIGHT
+
+        if self.port_spinner is not None:
+            self.port_spinner.height = control_height
+            self.port_spinner.font_size = f"{body_font_sp}sp"
+        for text_input in self._text_inputs:
+            if text_input.readonly and text_input.multiline:
+                text_input.font_size = f"{small_font_sp}sp"
+                continue
+            text_input.height = control_height
+            text_input.font_size = f"{body_font_sp}sp"
+        for button in self._buttons:
+            button.height = button_height
+            button.font_size = f"{body_font_sp}sp"
+            button.text_size = (
+                max(button.width - BUTTON_TEXT_PAD_X, dp(40)),
+                max(button.height - BUTTON_TEXT_PAD_Y, dp(20)),
+            )
+            button.halign = "center"
+            button.valign = "middle"
+        for label in self._section_titles:
+            label.font_size = f"{section_font_sp}sp"
+            label.height = notice_height
+        for label in self._info_labels:
+            label.font_size = f"{body_font_sp}sp"
+            label.height = info_height
+        for label in self._small_labels:
+            label.font_size = f"{small_font_sp}sp"
+            label.height = small_height
+        for label in self._axis_labels:
+            label.font_size = f"{axis_font_sp}sp"
+        for row in self._checkbox_rows:
+            row.height = checkbox_height
+        for label in self._labels_for_wrapping:
+            label.text_size = (max(label.width - dp(8), dp(40)), None)
+
+    def _section_title(self, text: str) -> Label:
+        """Purpose: create a styled section heading. Rationale: shared formatting avoids repeating label style settings everywhere."""
+        label = Label(
             text=f"[b]{text}[/b]",
             markup=True,
-            font_size="18sp",
-            color=(0.13, 0.19, 0.24, 1.0),
+            font_size=f"{SECTION_TITLE_FONT_SP}sp",
+            color=TEXT_PRIMARY_RGBA,
             size_hint_y=None,
-            height=dp(28),
+            height=HEADER_NOTICE_HEIGHT,
             halign="left",
             valign="middle",
         )
+        return self._register_section_title(label)
 
-    @staticmethod
-    def _info_label(text: str) -> Label:
-        return Label(
+    def _info_label(self, text: str) -> Label:
+        """Purpose: create a standard info label. Rationale: repeated UI label styling should come from one helper."""
+        label = Label(
             text=text,
-            color=(0.16, 0.20, 0.24, 1.0),
+            color=TEXT_SECONDARY_RGBA,
             size_hint_y=None,
-            height=dp(24),
+            height=INFO_LABEL_HEIGHT,
             halign="left",
             valign="middle",
+            font_size=f"{BODY_FONT_SP}sp",
         )
+        return self._register_info_label(label)
 
-    @staticmethod
-    def _small_label(text: str) -> Label:
-        return Label(
+    def _small_label(self, text: str) -> Label:
+        """Purpose: create smaller explanatory text. Rationale: helper text should be visually distinct from live status labels."""
+        label = Label(
             text=text,
-            color=(0.28, 0.32, 0.36, 1.0),
-            font_size="12sp",
+            color=TEXT_TERTIARY_RGBA,
+            font_size=f"{SMALL_FONT_SP}sp",
             size_hint_y=None,
-            height=dp(56),
+            height=SMALL_LABEL_HEIGHT,
             halign="left",
             valign="top",
         )
+        return self._register_small_label(label)
 
-    @staticmethod
     def _axis_label(
+        self,
         text: str,
         *,
         halign: str = "right",
         valign: str = "middle",
     ) -> Label:
-        return Label(
+        """Purpose: create a plot axis label. Rationale: axis labels share a compact style that is easier to manage in one helper."""
+        label = Label(
             text=text,
-            color=(0.28, 0.32, 0.36, 1.0),
-            font_size="11sp",
+            color=TEXT_TERTIARY_RGBA,
+            font_size=f"{AXIS_FONT_SP}sp",
             halign=halign,
             valign=valign,
         )
+        self._configure_label_wrapping(label)
+        return self._register_axis_label(label)
 
-    @staticmethod
-    def _button(text: str, handler, **kwargs) -> Button:
+    def _button(self, text: str, handler, **kwargs) -> Button:
+        """Purpose: create a styled button bound to a handler. Rationale: button look-and-feel should stay consistent across the UI."""
         button = Button(
             text=text,
             background_normal="",
-            background_color=(0.06, 0.46, 0.43, 1.0),
-            color=(1.0, 1.0, 1.0, 1.0),
+            background_color=BUTTON_BACKGROUND_RGBA,
+            color=BUTTON_TEXT_RGBA,
+            font_size=f"{BODY_FONT_SP}sp",
+            halign="center",
+            valign="middle",
             **kwargs,
         )
-        button.bind(on_release=handler)
-        return button
-
-    @staticmethod
-    def _checkbox_row(text: str, checkbox: CheckBox) -> BoxLayout:
-        row = BoxLayout(size_hint_y=None, height=dp(32), spacing=dp(8))
-        row.add_widget(checkbox)
-        row.add_widget(
-            Label(
-                text=text,
-                color=(0.16, 0.20, 0.24, 1.0),
-                halign="left",
-                valign="middle",
+        button.bind(
+            size=lambda instance, _value: setattr(
+                instance,
+                "text_size",
+                (
+                    max(instance.width - BUTTON_TEXT_PAD_X, dp(40)),
+                    max(instance.height - BUTTON_TEXT_PAD_Y, dp(20)),
+                ),
             )
         )
+        button.bind(on_release=handler)
+        self._buttons.append(button)
+        return button
+
+    def _checkbox_row(self, text: str, checkbox: CheckBox) -> BoxLayout:
+        """Purpose: lay out a checkbox with its label. Rationale: calibration toggles should use one compact reusable row pattern."""
+        row = BoxLayout(size_hint_y=None, height=CHECKBOX_ROW_HEIGHT, spacing=CARD_GAP)
+        checkbox.size_hint = (None, None)
+        checkbox.size = (CALIBRATION_CHECKBOX_SIZE, CALIBRATION_CHECKBOX_SIZE)
+        checkbox_box = BoxLayout(
+            size_hint_x=None,
+            width=CALIBRATION_CHECKBOX_BOX_WIDTH,
+            size_hint_y=None,
+            height=CALIBRATION_CHECKBOX_BOX_HEIGHT,
+            padding=dp(4),
+        )
+        with checkbox_box.canvas.before:
+            Color(*CALIBRATION_CHECKBOX_BACKGROUND_RGBA)
+            checkbox_box._background = RoundedRectangle(radius=[8])  # type: ignore[attr-defined]
+            Color(*CALIBRATION_CHECKBOX_BORDER_RGBA)
+            checkbox_box._border = Line(rounded_rectangle=[0, 0, 0, 0, 8], width=1.0)  # type: ignore[attr-defined]
+        checkbox_box.bind(
+            pos=lambda instance, _value: self._update_checkbox_box_canvas(instance),
+            size=lambda instance, _value: self._update_checkbox_box_canvas(instance),
+        )
+        checkbox_box.add_widget(checkbox)
+        row.add_widget(checkbox_box)
+        state_label = Label(
+            text=CALIBRATION_CHECKBOX_STATE_ON_TEXT if checkbox.active else CALIBRATION_CHECKBOX_STATE_OFF_TEXT,
+            color=CALIBRATION_CHECKBOX_STATE_ON_RGBA if checkbox.active else CALIBRATION_CHECKBOX_STATE_OFF_RGBA,
+            size_hint_x=None,
+            width=dp(36),
+            halign="center",
+            valign="middle",
+            font_size=f"{BODY_FONT_SP}sp",
+        )
+        self._configure_label_wrapping(state_label)
+        checkbox.bind(active=lambda _instance, value: self._update_checkbox_state_label(state_label, value))
+        row.add_widget(state_label)
+        label = Label(
+            text=text,
+            color=TEXT_SECONDARY_RGBA,
+            halign="left",
+            valign="middle",
+            font_size=f"{BODY_FONT_SP}sp",
+        )
+        self._configure_label_wrapping(label)
+        row.add_widget(label)
+        self._checkbox_rows.append(row)
         return row
+
+    def _update_checkbox_box_canvas(self, widget: BoxLayout) -> None:
+        """Purpose: keep the checkbox highlight box aligned to its widget. Rationale: custom checkbox framing must follow layout changes."""
+        widget._background.pos = widget.pos  # type: ignore[attr-defined]
+        widget._background.size = widget.size  # type: ignore[attr-defined]
+        widget._border.rounded_rectangle = [widget.x, widget.y, widget.width, widget.height, 8]  # type: ignore[attr-defined]
+
+    def _update_checkbox_state_label(self, label: Label, is_active: bool) -> None:
+        """Purpose: update the visible checkbox state tag. Rationale: the calibration toggles should be readable even on low-contrast displays."""
+        label.text = CALIBRATION_CHECKBOX_STATE_ON_TEXT if is_active else CALIBRATION_CHECKBOX_STATE_OFF_TEXT
+        label.color = CALIBRATION_CHECKBOX_STATE_ON_RGBA if is_active else CALIBRATION_CHECKBOX_STATE_OFF_RGBA
+
+    def _calibration_action_row(self, title: str, description: str, action_key: str) -> Card:
+        """Purpose: create one calibration routine entry. Rationale: the manager should present guided calibrations as a readable action list."""
+        row_card = Card(size_hint_y=None)
+        row_card.bind(minimum_height=row_card.setter("height"))
+        row_card.add_widget(self._section_title(title))
+        row_card.add_widget(self._small_label(description))
+        row_card.add_widget(
+            self._button(
+                f"Start {title}",
+                lambda *_args, key=action_key, display=title: self.run_calibration_task(key, display),
+                size_hint_y=None,
+                height=BUTTON_HEIGHT,
+            )
+        )
+        return row_card
+
+    def run_calibration_task(self, action_key: str, display_name: str) -> None:
+        """Purpose: acknowledge a requested calibration routine. Rationale: the manager should expose task slots even before each routine is fully automated."""
+        notices = {
+            "pixel_mapping": (
+                "Pixel mapping selected. Next step: capture several known light sources and match their peaks to CCD pixels."
+            ),
+            "dark_reference": "Dark reference capture selected. Cover the sensor and acquire a baseline frame set.",
+            "intensity_reference": "Intensity reference selected. Use an even illumination source and record a correction frame.",
+            "wavelength_review": "Wavelength review selected. Inspect the current coefficients and compare them to known peaks.",
+        }
+        self.set_notice(notices.get(action_key, f"{display_name} selected."))
+
+    def _configure_label_wrapping(self, label: Label) -> None:
+        """Purpose: make labels wrap within their current width. Rationale: narrow layouts need labels to resize instead of clipping."""
+        label.bind(
+            size=lambda instance, _value: setattr(
+                instance,
+                "text_size",
+                (max(instance.width - dp(8), dp(40)), None),
+            )
+        )
+        self._labels_for_wrapping.append(label)
+
+    def _configure_text_input(self, widget: TextInput) -> None:
+        """Purpose: register text inputs for responsive scaling. Rationale: controls should share one resize path instead of per-widget tweaks."""
+        widget.font_size = f"{BODY_FONT_SP}sp"
+        self._text_inputs.append(widget)
+
+    def _register_section_title(self, label: Label) -> Label:
+        """Purpose: remember section headers for responsive scaling. Rationale: title sizing should stay synchronized across cards."""
+        self._configure_label_wrapping(label)
+        self._section_titles.append(label)
+        return label
+
+    def _register_info_label(self, label: Label) -> Label:
+        """Purpose: remember standard labels for responsive scaling. Rationale: status lines need shared height and font adjustments."""
+        self._configure_label_wrapping(label)
+        self._info_labels.append(label)
+        return label
+
+    def _register_small_label(self, label: Label) -> Label:
+        """Purpose: remember helper text labels for responsive scaling. Rationale: explanatory copy needs more height when wrapping."""
+        self._configure_label_wrapping(label)
+        self._small_labels.append(label)
+        return label
+
+    def _register_axis_label(self, label: Label) -> Label:
+        """Purpose: remember axis labels for responsive scaling. Rationale: axis text should stay legible but compact on small windows."""
+        self._axis_labels.append(label)
+        return label
 
 
 def run_desktop_app(runtime: AppRuntime) -> None:
+    """Purpose: launch the Kivy desktop app. Rationale: the entrypoint should only need one simple call to start the UI."""
     DesktopSpectrometerApp(runtime).run()

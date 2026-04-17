@@ -736,3 +736,81 @@ serial.serialutil.SerialException: could not open port 'COM3': PermissionError(1
 2026-04-15 00:35:41,881 INFO kivy: WindowSDL: Window is now on display 2
 2026-04-15 00:35:57,599 INFO kivy: WindowSDL: Window is now on display 0
 2026-04-15 00:35:57,599 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:27:28,074 INFO kivy: GL: NPOT texture support is available
+2026-04-16 17:27:28,156 INFO kivy: Base: Start application main loop
+2026-04-16 17:28:16,502 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:31:26,845 INFO kivy: Base: Leaving application in progress...
+2026-04-16 17:31:30,579 INFO kivy: GL: NPOT texture support is available
+2026-04-16 17:31:30,637 INFO kivy: Base: Start application main loop
+2026-04-16 17:32:09,390 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-16 17:32:09,391 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 17:32:09,391 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:35:36,720 INFO kivy: Base: Leaving application in progress...
+2026-04-16 17:35:41,951 INFO kivy: GL: NPOT texture support is available
+2026-04-16 17:35:42,002 INFO kivy: Base: Start application main loop
+2026-04-16 17:35:51,930 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:35:54,600 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 17:38:12,973 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:38:12,974 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 17:38:12,974 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:41:33,225 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 17:41:43,827 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:41:43,827 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 17:41:54,697 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:42:38,042 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 17:42:38,043 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 17:47:37,189 INFO kivy: Base: Leaving application in progress...
+2026-04-16 17:47:51,733 INFO kivy: GL: NPOT texture support is available
+2026-04-16 17:47:51,816 INFO kivy: Base: Start application main loop
+2026-04-16 17:51:26,646 INFO kivy: Base: Leaving application in progress...
+2026-04-16 17:51:30,145 INFO kivy: GL: NPOT texture support is available
+2026-04-16 17:51:30,208 INFO kivy: Base: Start application main loop
+2026-04-16 18:09:52,112 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:09:55,360 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:09:55,425 INFO kivy: Base: Start application main loop
+2026-04-16 18:17:04,808 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 18:17:07,095 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:17:25,685 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:17:25,756 INFO kivy: Base: Start application main loop
+2026-04-16 18:20:35,129 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:20:35,209 INFO kivy: Base: Start application main loop
+2026-04-16 18:20:37,434 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:21:34,246 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 18:21:34,247 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 18:21:44,440 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 18:28:45,109 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:28:47,988 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:28:48,071 INFO kivy: Base: Start application main loop
+2026-04-16 18:31:47,204 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:31:52,044 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:31:52,120 INFO kivy: Base: Start application main loop
+2026-04-16 18:31:54,271 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:31:57,670 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:31:57,745 INFO kivy: Base: Start application main loop
+2026-04-16 18:34:02,184 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-16 18:34:02,184 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 18:34:02,185 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 18:40:36,212 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 18:40:36,213 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 18:40:36,213 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 18:40:37,251 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:40:45,622 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:40:45,719 INFO kivy: Base: Start application main loop
+2026-04-16 18:48:53,628 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:48:59,138 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:48:59,220 INFO kivy: Base: Start application main loop
+2026-04-16 18:54:06,631 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:54:13,805 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:54:13,889 INFO kivy: Base: Start application main loop
+2026-04-16 18:56:51,458 INFO kivy: Base: Leaving application in progress...
+2026-04-16 18:56:57,179 INFO kivy: GL: NPOT texture support is available
+2026-04-16 18:56:57,257 INFO kivy: Base: Start application main loop
+2026-04-16 18:59:13,741 INFO kivy: Base: Leaving application in progress...
+2026-04-16 19:02:00,134 INFO kivy: GL: NPOT texture support is available
+2026-04-16 19:02:00,210 INFO kivy: Base: Start application main loop
+2026-04-16 19:23:38,883 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-16 19:23:38,883 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 19:23:38,883 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 19:24:11,349 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-16 19:24:11,350 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-16 19:31:06,826 INFO kivy: Base: Leaving application in progress...

@@ -8,9 +8,11 @@ class DeviceStreamReader:
     """Rebuild mixed ASCII banners and binary CCD frame packets from USB CDC bytes."""
 
     def __init__(self) -> None:
+        """Purpose: initialize the incoming byte buffer. Rationale: serial reads may split packets across many chunks."""
         self._buffer = bytearray()
 
     def feed(self, data: bytes) -> list[DevicePacket]:
+        """Purpose: parse complete packets from new bytes. Rationale: the device stream mixes binary frames and text lines."""
         self._buffer.extend(data)
         packets: list[DevicePacket] = []
 
@@ -53,6 +55,7 @@ class DeviceStreamReader:
         return packets
 
     def reset(self) -> None:
+        """Purpose: clear the internal parse buffer. Rationale: reconnects should not reuse leftover bytes from old sessions."""
         self._buffer.clear()
 
 

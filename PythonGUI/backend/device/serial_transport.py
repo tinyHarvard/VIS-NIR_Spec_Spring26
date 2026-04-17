@@ -10,7 +10,9 @@ from backend.models.status import ConnectionState
 
 
 class SerialTransport(BaseTransport):
+    """Purpose: implement USB serial communication. Rationale: pyserial details should stay isolated from the rest of the app."""
     def __init__(self) -> None:
+        """Purpose: initialize serial transport state. Rationale: the reader thread, port handle, and locks need one owner."""
         super().__init__()
         self._serial: serial.Serial | None = None
         self._reader_thread: threading.Thread | None = None
@@ -24,6 +26,7 @@ class SerialTransport(BaseTransport):
         baudrate: int = 115200,
         timeout_s: float = 0.1,
     ) -> None:
+        """Purpose: open the selected COM port and start reading. Rationale: connection startup should also launch the background reader."""
         if self.is_connected():
             self.disconnect()
 
@@ -50,6 +53,7 @@ class SerialTransport(BaseTransport):
         self._emit_state(ConnectionState.connected, f"Connected to {selected_port}.")
 
     def disconnect(self) -> None:
+        """Purpose: stop the reader thread and close the port. Rationale: shutdown should release the OS handle cleanly."""
         self._stop_event.set()
 
         serial_handle = self._serial
@@ -64,6 +68,7 @@ class SerialTransport(BaseTransport):
         self._emit_state(ConnectionState.disconnected, "Serial connection closed.")
 
     def write(self, payload: bytes) -> None:
+        """Purpose: send bytes over the serial port. Rationale: writes should be synchronized so commands are not interleaved."""
         if not self.is_connected() or self._serial is None:
             raise RuntimeError("Serial transport is not connected.")
 
@@ -72,9 +77,11 @@ class SerialTransport(BaseTransport):
             self._serial.flush()
 
     def is_connected(self) -> bool:
+        """Purpose: report whether the serial port is open. Rationale: callers need a quick readiness check before reading or writing."""
         return self._serial is not None and self._serial.is_open
 
     def list_ports(self) -> list[dict[str, str]]:
+        """Purpose: enumerate available COM ports. Rationale: the UI needs human-readable choices for connection selection."""
         available = []
         for port in sorted(list_ports.comports(), key=lambda item: item.device):
             available.append(
@@ -87,6 +94,7 @@ class SerialTransport(BaseTransport):
         return available
 
     def _reader_loop(self) -> None:
+        """Purpose: continuously read serial bytes in the background. Rationale: incoming data should be collected without blocking the UI."""
         try:
             while not self._stop_event.is_set():
                 serial_handle = self._serial

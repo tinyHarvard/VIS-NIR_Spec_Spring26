@@ -9,6 +9,7 @@ def indices_to_wavelengths(
     sample_indices: Sequence[int],
     coefficients: Sequence[float],
 ) -> np.ndarray:
+    """Purpose: map sample indices to wavelengths. Rationale: wavelength calibration should come from coefficients rather than hard-coded tables."""
     indices = np.asarray(sample_indices, dtype=float)
     if not coefficients:
         return indices
