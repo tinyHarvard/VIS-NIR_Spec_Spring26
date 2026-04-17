@@ -7,12 +7,14 @@ from typing import Sequence
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
+from kivy.core.window import Window
 from kivy.graphics import Color, Line, RoundedRectangle
 from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.checkbox import CheckBox
 from kivy.uix.label import Label
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
@@ -332,7 +334,14 @@ HEADER_SIDE_PANEL_BUTTON_WIDTH = dp(160)
 
 class Card(BoxLayout):
     """Purpose: render a styled panel container. Rationale: shared card styling keeps the UI layout consistent."""
+    """Purpose: render a styled panel container. Rationale: shared card styling keeps the UI layout consistent."""
     def __init__(self, **kwargs) -> None:
+        """Purpose: build the card layout and background. Rationale: reusable visual framing should be created once in one widget."""
+        background_rgba = kwargs.pop("background_rgba", CARD_BACKGROUND_RGBA)
+        border_rgba = kwargs.pop("border_rgba", CARD_BORDER_RGBA)
+        # Every card is a vertical stack with shared spacing and padding so the
+        # content blocks line up consistently across the app.
+        super().__init__(orientation="vertical", spacing=CARD_GAP, padding=CARD_PAD, **kwargs)
         """Purpose: build the card layout and background. Rationale: reusable visual framing should be created once in one widget."""
         background_rgba = kwargs.pop("background_rgba", CARD_BACKGROUND_RGBA)
         border_rgba = kwargs.pop("border_rgba", CARD_BORDER_RGBA)
@@ -341,23 +350,32 @@ class Card(BoxLayout):
         super().__init__(orientation="vertical", spacing=CARD_GAP, padding=CARD_PAD, **kwargs)
         with self.canvas.before:
             Color(*background_rgba)
+            Color(*background_rgba)
             self._background = RoundedRectangle(radius=[18])
+            Color(*border_rgba)
+            self._border = Line(rounded_rectangle=[0, 0, 0, 0, 18], width=1.0)
             Color(*border_rgba)
             self._border = Line(rounded_rectangle=[0, 0, 0, 0, 18], width=1.0)
         self.bind(pos=self._update_background, size=self._update_background)
 
     def _update_background(self, *_args) -> None:
         """Purpose: resize the rounded background to match the widget. Rationale: Kivy canvas shapes do not track widget size automatically."""
+        """Purpose: resize the rounded background to match the widget. Rationale: Kivy canvas shapes do not track widget size automatically."""
         self._background.pos = self.pos
         self._background.size = self.size
+        self._border.rounded_rectangle = [self.x, self.y, self.width, self.height, 18]
         self._border.rounded_rectangle = [self.x, self.y, self.width, self.height, 18]
 
 
 class SpectrumPlot(Widget):
     """Purpose: draw the live spectrum line. Rationale: a custom plot widget gives full control over axes, scaling, and rendering speed."""
+    """Purpose: draw the live spectrum line. Rationale: a custom plot widget gives full control over axes, scaling, and rendering speed."""
     def __init__(self, **kwargs) -> None:
         """Purpose: initialize plot state and redraw bindings. Rationale: the plot should react whenever data or size changes."""
+        """Purpose: initialize plot state and redraw bindings. Rationale: the plot should react whenever data or size changes."""
         super().__init__(**kwargs)
+        # The plot stores raw x/y series and maps them into screen coordinates
+        # during `_redraw`.
         # The plot stores raw x/y series and maps them into screen coordinates
         # during `_redraw`.
         self._x_values: Sequence[int] = ()
@@ -367,9 +385,14 @@ class SpectrumPlot(Widget):
         self._cursor_index: int | None = None
         self._cursor_callback = None
         self._plot_bounds: tuple[float, float, float, float] | None = None
+        self._adc_max = float((1 << 12) - 1)
+        self._cursor_index: int | None = None
+        self._cursor_callback = None
+        self._plot_bounds: tuple[float, float, float, float] | None = None
         self.bind(pos=self._redraw, size=self._redraw)
 
     def set_series(self, x_values: Sequence[int], y_values: Sequence[int]) -> None:
+        """Purpose: store the current x/y series. Rationale: the UI should update the plot by replacing data, not drawing directly."""
         """Purpose: store the current x/y series. Rationale: the UI should update the plot by replacing data, not drawing directly."""
         self._x_values = x_values
         self._y_values = y_values
@@ -392,18 +415,25 @@ class SpectrumPlot(Widget):
 
     def set_adc_range(self, adc_min: int, adc_max: int) -> None:
         """Purpose: store the y-axis bounds. Rationale: the graph should use the fixed ADC scale chosen by the device config."""
+        """Purpose: store the y-axis bounds. Rationale: the graph should use the fixed ADC scale chosen by the device config."""
         self._adc_min = float(adc_min)
         self._adc_max = float(max(adc_max, adc_min + 1))
         self._redraw()
 
     def _redraw(self, *_args) -> None:
         """Purpose: redraw the plot canvas. Rationale: Kivy plots are manual, so any visual update must be rendered explicitly."""
+        """Purpose: redraw the plot canvas. Rationale: Kivy plots are manual, so any visual update must be rendered explicitly."""
         self.canvas.clear()
         with self.canvas:
             # Plot background panel.
             Color(*APP_BACKGROUND_RGBA)
+            # Plot background panel.
+            Color(*APP_BACKGROUND_RGBA)
             RoundedRectangle(pos=self.pos, size=self.size, radius=[16])
 
+            # Plot border so the graph area reads like a chart, not empty space.
+            Color(*CARD_BORDER_RGBA)
+            Line(rounded_rectangle=[self.x, self.y, self.width, self.height, 16], width=PLOT_BORDER_WIDTH)
             # Plot border so the graph area reads like a chart, not empty space.
             Color(*CARD_BORDER_RGBA)
             Line(rounded_rectangle=[self.x, self.y, self.width, self.height, 16], width=PLOT_BORDER_WIDTH)
@@ -414,8 +444,21 @@ class SpectrumPlot(Widget):
                 or self.width <= PLOT_MIN_DRAW_SIZE
                 or self.height <= PLOT_MIN_DRAW_SIZE
             ):
+            if (
+                not self._x_values
+                or not self._y_values
+                or self.width <= PLOT_MIN_DRAW_SIZE
+                or self.height <= PLOT_MIN_DRAW_SIZE
+            ):
                 return
 
+            left = self.x + PLOT_INNER_PAD
+            bottom = self.y + PLOT_INNER_PAD
+            plot_width = max(self.width - (PLOT_INNER_PAD * 2), 1.0)
+            plot_height = max(self.height - (PLOT_INNER_PAD * 2), 1.0)
+            self._plot_bounds = (left, bottom, plot_width, plot_height)
+
+            # Convert sample coordinates into widget pixel coordinates.
             left = self.x + PLOT_INNER_PAD
             bottom = self.y + PLOT_INNER_PAD
             plot_width = max(self.width - (PLOT_INNER_PAD * 2), 1.0)
@@ -439,7 +482,13 @@ class SpectrumPlot(Widget):
 
             # Reference lines for min, midpoint, max, and the left axis.
             Color(*GUIDE_LINE_RGBA)
+            # Reference lines for min, midpoint, max, and the left axis.
+            Color(*GUIDE_LINE_RGBA)
             mid_y = bottom + (plot_height * 0.5)
+            Line(points=[left, bottom, left + plot_width, bottom], width=GUIDE_LINE_WIDTH)
+            Line(points=[left, mid_y, left + plot_width, mid_y], width=GUIDE_LINE_WIDTH)
+            Line(points=[left, bottom + plot_height, left + plot_width, bottom + plot_height], width=GUIDE_LINE_WIDTH)
+            Line(points=[left, bottom, left, bottom + plot_height], width=GUIDE_LINE_WIDTH)
             Line(points=[left, bottom, left + plot_width, bottom], width=GUIDE_LINE_WIDTH)
             Line(points=[left, mid_y, left + plot_width, mid_y], width=GUIDE_LINE_WIDTH)
             Line(points=[left, bottom + plot_height, left + plot_width, bottom + plot_height], width=GUIDE_LINE_WIDTH)
@@ -507,9 +556,72 @@ class SpectrumPlot(Widget):
                 float(self._y_values[nearest_index]),
             )
         return True
+            # The spectrum is drawn in chunks because very long single Kivy lines
+            # can render unreliably or become sluggish.
+            Color(*PLOT_LINE_RGBA)
+            for chunk in self._iter_line_chunks(points, max_vertices=PLOT_CHUNK_MAX_VERTICES):
+                Line(points=chunk, width=PLOT_LINE_WIDTH)
+
+            if (
+                self._cursor_index is not None
+                and 0 <= self._cursor_index < len(self._x_values)
+                and 0 <= self._cursor_index < len(self._y_values)
+            ):
+                cursor_x_value = float(self._x_values[self._cursor_index])
+                cursor_y_value = min(max(float(self._y_values[self._cursor_index]), self._adc_min), self._adc_max)
+                cursor_x = left + ((cursor_x_value - x_min) * x_scale)
+                cursor_y = bottom + ((cursor_y_value - self._adc_min) * y_scale)
+                Color(*PLOT_CURSOR_GUIDE_RGBA)
+                Line(points=[cursor_x, bottom, cursor_x, bottom + plot_height], width=PLOT_CURSOR_LINE_WIDTH)
+                Color(*PLOT_CURSOR_RGBA)
+                Line(circle=(cursor_x, cursor_y, PLOT_CURSOR_MARKER_SIZE), width=PLOT_CURSOR_LINE_WIDTH)
+
+    def on_touch_down(self, touch) -> bool:
+        """Purpose: place or move the plot cursor. Rationale: users should be able to inspect one plotted point interactively."""
+        if not self.collide_point(*touch.pos):
+            return super().on_touch_down(touch)
+        return self._update_cursor_from_touch(touch) or super().on_touch_down(touch)
+
+    def on_touch_move(self, touch) -> bool:
+        """Purpose: drag the plot cursor across the graph. Rationale: cursor inspection should work smoothly while dragging."""
+        if touch.grab_current is self:
+            return self._update_cursor_from_touch(touch) or True
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch) -> bool:
+        """Purpose: release the cursor drag state. Rationale: grabbed touches should be released cleanly after interaction."""
+        if touch.grab_current is self:
+            touch.ungrab(self)
+            return True
+        return super().on_touch_up(touch)
+
+    def _update_cursor_from_touch(self, touch) -> bool:
+        """Purpose: convert a touch position into the nearest plotted sample. Rationale: cursor selection should snap to real sample points."""
+        if not self._x_values or not self._y_values or self._plot_bounds is None:
+            return False
+
+        left, _bottom, plot_width, _plot_height = self._plot_bounds
+        if plot_width <= 0:
+            return False
+
+        relative_x = min(max(touch.x, left), left + plot_width) - left
+        fraction = relative_x / plot_width
+        nearest_index = int(round(fraction * max(len(self._x_values) - 1, 0)))
+        nearest_index = min(max(nearest_index, 0), len(self._x_values) - 1)
+        self._cursor_index = nearest_index
+        touch.grab(self)
+        self._redraw()
+
+        if self._cursor_callback is not None:
+            self._cursor_callback(
+                int(self._x_values[nearest_index]),
+                float(self._y_values[nearest_index]),
+            )
+        return True
 
     @staticmethod
     def _iter_line_chunks(points: list[float], *, max_vertices: int) -> list[list[float]]:
+        """Purpose: split a long line into smaller pieces. Rationale: chunking large plots is more reliable for Kivy rendering."""
         """Purpose: split a long line into smaller pieces. Rationale: chunking large plots is more reliable for Kivy rendering."""
         if len(points) <= max_vertices * 2:
             return [points]
@@ -535,11 +647,15 @@ class SpectrumPlot(Widget):
 
 class DesktopSpectrometerApp(App):
     """Purpose: own the desktop window and all UI behavior. Rationale: Kivy apps usually centralize event handling in one app object."""
+    """Purpose: own the desktop window and all UI behavior. Rationale: Kivy apps usually centralize event handling in one app object."""
     def __init__(self, runtime: AppRuntime, **kwargs) -> None:
+        """Purpose: store the runtime and widget references. Rationale: later refresh methods need access to both services and UI controls."""
         """Purpose: store the runtime and widget references. Rationale: later refresh methods need access to both services and UI controls."""
         super().__init__(**kwargs)
         self.runtime = runtime
         self.title = "VIS-NIR Spectrometer"
+        # These fields are filled in during `build()` and then reused by button
+        # handlers and refresh timers.
         # These fields are filled in during `build()` and then reused by button
         # handlers and refresh timers.
         self.port_spinner: Spinner | None = None
@@ -566,6 +682,7 @@ class DesktopSpectrometerApp(App):
         self.edge_label: Label | None = None
         self.refresh_rate_label: Label | None = None
         self.session_label: Label | None = None
+        self.cursor_label: Label | None = None
         self.cursor_label: Label | None = None
         self.notice_label: Label | None = None
         self.log_area: TextInput | None = None
@@ -629,12 +746,16 @@ class DesktopSpectrometerApp(App):
 
     def build(self) -> BoxLayout:
         """Purpose: construct the full desktop layout. Rationale: Kivy expects one method to create the root widget tree."""
+        """Purpose: construct the full desktop layout. Rationale: Kivy expects one method to create the root widget tree."""
         user_config = self.runtime.state_manager.get_user_config()
         calibration_config = self.runtime.state_manager.get_calibration_config()
 
         # Root app shell: header on top, main content below.
+        # Root app shell: header on top, main content below.
         root = BoxLayout(
             orientation="vertical",
+            spacing=APP_GAP,
+            padding=APP_GAP,
             spacing=APP_GAP,
             padding=APP_GAP,
         )
@@ -664,21 +785,65 @@ class DesktopSpectrometerApp(App):
         )
         header_top_row.add_widget(self._side_panel_button)
         header.add_widget(header_top_row)
+        # Header card holds the app title and a single high-visibility notice line.
+        header = Card(size_hint_y=None, height=HEADER_CARD_HEIGHT)
+        self._header_card = header
+        header_top_row = BoxLayout(orientation="horizontal", spacing=CARD_GAP, size_hint_y=None, height=HEADER_TITLE_HEIGHT)
+        self._header_top_row = header_top_row
+        self._header_title_label = Label(
+            text=HEADER_CARD_TITLE_TEXT,
+            markup=True,
+            font_size=f"{TITLE_FONT_SP}sp",
+            color=TEXT_PRIMARY_RGBA,
+            size_hint_y=1.0,
+            halign="left",
+            valign="middle",
+        )
+        self._configure_label_wrapping(self._header_title_label)
+        header_top_row.add_widget(self._header_title_label)
+        self._side_panel_button = self._button(
+            HEADER_SIDE_PANEL_BUTTON_TEXT,
+            self.toggle_side_panel,
+            size_hint_x=None,
+            width=HEADER_SIDE_PANEL_BUTTON_WIDTH,
+            size_hint_y=1.0,
+        )
+        header_top_row.add_widget(self._side_panel_button)
+        header.add_widget(header_top_row)
         self.notice_label = Label(
+            text=HEADER_CARD_INITIAL_NOTICE_TEXT,
+            color=NOTICE_RGBA,
             text=HEADER_CARD_INITIAL_NOTICE_TEXT,
             color=NOTICE_RGBA,
             halign="left",
             valign="middle",
             size_hint_y=None,
             height=HEADER_NOTICE_HEIGHT,
+            height=HEADER_NOTICE_HEIGHT,
         )
+        self._configure_label_wrapping(self.notice_label)
         self._configure_label_wrapping(self.notice_label)
         header.add_widget(self.notice_label)
         root.add_widget(header)
 
         # Body is the responsive region that flips between horizontal and vertical.
         body = BoxLayout(spacing=APP_GAP)
+        # Body is the responsive region that flips between horizontal and vertical.
+        body = BoxLayout(spacing=APP_GAP)
         root.add_widget(body)
+        self._body = body
+
+        left_scroll = ScrollView(
+            do_scroll_x=False,
+            do_scroll_y=True,
+            bar_width=dp(8),
+            scroll_type=["bars", "content"],
+            size_hint_x=SIDEBAR_RATIO_WIDE,
+        )
+        body.add_widget(left_scroll)
+        self._left_scroll = left_scroll
+
+        # Left column: controls and session management.
         self._body = body
 
         left_scroll = ScrollView(
@@ -696,15 +861,24 @@ class DesktopSpectrometerApp(App):
             orientation="vertical",
             spacing=APP_GAP,
             size_hint_y=None,
+            spacing=APP_GAP,
+            size_hint_y=None,
         )
+        left_column.bind(minimum_height=left_column.setter("height"))
+        left_scroll.add_widget(left_column)
+        left_scroll.bind(width=lambda _instance, value: setattr(left_column, "width", value))
+        self._left_column = left_column
         left_column.bind(minimum_height=left_column.setter("height"))
         left_scroll.add_widget(left_column)
         left_scroll.bind(width=lambda _instance, value: setattr(left_column, "width", value))
         self._left_column = left_column
 
         # Right column: graph and diagnostics.
+        # Right column: graph and diagnostics.
         right_column = BoxLayout(
             orientation="vertical",
+            spacing=APP_GAP,
+            size_hint_x=DETAIL_RATIO_WIDE,
             spacing=APP_GAP,
             size_hint_x=DETAIL_RATIO_WIDE,
         )
@@ -720,15 +894,35 @@ class DesktopSpectrometerApp(App):
         self._connection_card = connection_card
         self._side_panel_cards.append(connection_card)
         connection_card.add_widget(self._section_title(CONNECTION_CARD_TITLE_TEXT))
+        self._right_column = right_column
+        main_content_container = BoxLayout(orientation="vertical", size_hint_y=1.0)
+        right_column.add_widget(main_content_container)
+        self._main_content_container = main_content_container
+
+        # Connection card keeps device discovery and connect/disconnect actions together.
+        connection_card = Card(size_hint_y=None)
+        connection_card.bind(minimum_height=connection_card.setter("height"))
+        self._connection_card = connection_card
+        self._side_panel_cards.append(connection_card)
+        connection_card.add_widget(self._section_title(CONNECTION_CARD_TITLE_TEXT))
         self.port_spinner = Spinner(
+            text=user_config.serial.port or CONNECTION_CARD_PORT_PLACEHOLDER,
             text=user_config.serial.port or CONNECTION_CARD_PORT_PLACEHOLDER,
             values=(),
             size_hint_y=None,
             height=CONTROL_HEIGHT,
             sync_height=True,
+            height=CONTROL_HEIGHT,
+            sync_height=True,
         )
         self.port_spinner.font_size = f"{BODY_FONT_SP}sp"
+        self.port_spinner.font_size = f"{BODY_FONT_SP}sp"
         connection_card.add_widget(self.port_spinner)
+        connection_buttons = BoxLayout(size_hint_y=None, height=BUTTON_HEIGHT, spacing=CARD_GAP)
+        self._connection_buttons = connection_buttons
+        connection_buttons.add_widget(self._button(CONNECTION_CARD_REFRESH_BUTTON_TEXT, self.refresh_ports))
+        connection_buttons.add_widget(self._button(CONNECTION_CARD_CONNECT_BUTTON_TEXT, self.connect_device))
+        connection_buttons.add_widget(self._button(CONNECTION_CARD_DISCONNECT_BUTTON_TEXT, self.disconnect_device))
         connection_buttons = BoxLayout(size_hint_y=None, height=BUTTON_HEIGHT, spacing=CARD_GAP)
         self._connection_buttons = connection_buttons
         connection_buttons.add_widget(self._button(CONNECTION_CARD_REFRESH_BUTTON_TEXT, self.refresh_ports))
@@ -738,15 +932,28 @@ class DesktopSpectrometerApp(App):
         connection_card.add_widget(self._button(CONNECTION_CARD_SAVE_BUTTON_TEXT, self.save_user_config, size_hint_y=None, height=BUTTON_HEIGHT))
         self.status_label = self._info_label(CONNECTION_CARD_STATUS_TEXT)
         self.banner_label = self._info_label(CONNECTION_CARD_FIRMWARE_TEXT)
+        connection_card.add_widget(self._button(CONNECTION_CARD_SAVE_BUTTON_TEXT, self.save_user_config, size_hint_y=None, height=BUTTON_HEIGHT))
+        self.status_label = self._info_label(CONNECTION_CARD_STATUS_TEXT)
+        self.banner_label = self._info_label(CONNECTION_CARD_FIRMWARE_TEXT)
         connection_card.add_widget(self.status_label)
         connection_card.add_widget(self.banner_label)
+
+        # Calibration card holds wavelength fit terms and correction toggles.
+        calibration_card = Card(
 
         # Calibration card holds wavelength fit terms and correction toggles.
         calibration_card = Card(
             size_hint_y=None,
             background_rgba=CALIBRATION_CARD_BACKGROUND_RGBA,
             border_rgba=CALIBRATION_CARD_BORDER_RGBA,
+            background_rgba=CALIBRATION_CARD_BACKGROUND_RGBA,
+            border_rgba=CALIBRATION_CARD_BORDER_RGBA,
         )
+        calibration_card.bind(minimum_height=calibration_card.setter("height"))
+        self._calibration_card = calibration_card
+        self._side_panel_cards.append(calibration_card)
+        calibration_card.add_widget(self._section_title(CALIBRATION_CARD_TITLE_TEXT))
+        calibration_card.add_widget(self._small_label(CALIBRATION_CARD_HELPER_TEXT))
         calibration_card.bind(minimum_height=calibration_card.setter("height"))
         self._calibration_card = calibration_card
         self._side_panel_cards.append(calibration_card)
@@ -767,15 +974,37 @@ class DesktopSpectrometerApp(App):
         self._command_card = command_card
         self._side_panel_cards.append(command_card)
         command_card.add_widget(self._section_title(COMMAND_CARD_TITLE_TEXT))
+            self._button(
+                CALIBRATION_CARD_OPEN_MANAGER_BUTTON_TEXT,
+                self.open_calibration_manager,
+                size_hint_y=None,
+                height=BUTTON_HEIGHT,
+            )
+        )
+
+        # Session/command card is for export/reset and raw command testing.
+        command_card = Card(size_hint_y=None)
+        command_card.bind(minimum_height=command_card.setter("height"))
+        self._command_card = command_card
+        self._side_panel_cards.append(command_card)
+        command_card.add_widget(self._section_title(COMMAND_CARD_TITLE_TEXT))
         self.command_input = TextInput(
             text="",
             multiline=False,
             hint_text=COMMAND_CARD_HINT_TEXT,
+            hint_text=COMMAND_CARD_HINT_TEXT,
             size_hint_y=None,
+            height=CONTROL_HEIGHT,
             height=CONTROL_HEIGHT,
         )
         self._configure_text_input(self.command_input)
+        self._configure_text_input(self.command_input)
         command_card.add_widget(self.command_input)
+        command_card.add_widget(self._button(COMMAND_CARD_SEND_BUTTON_TEXT, self.send_raw_command, size_hint_y=None, height=BUTTON_HEIGHT))
+        session_buttons = BoxLayout(size_hint_y=None, height=BUTTON_HEIGHT, spacing=CARD_GAP)
+        self._session_buttons = session_buttons
+        session_buttons.add_widget(self._button(COMMAND_CARD_EXPORT_BUTTON_TEXT, self.export_session))
+        session_buttons.add_widget(self._button(COMMAND_CARD_RESET_BUTTON_TEXT, self.reset_session))
         command_card.add_widget(self._button(COMMAND_CARD_SEND_BUTTON_TEXT, self.send_raw_command, size_hint_y=None, height=BUTTON_HEIGHT))
         session_buttons = BoxLayout(size_hint_y=None, height=BUTTON_HEIGHT, spacing=CARD_GAP)
         self._session_buttons = session_buttons
@@ -784,19 +1013,28 @@ class DesktopSpectrometerApp(App):
         command_card.add_widget(session_buttons)
 
         # Plot card is the main live-view area for the CCD output.
+        # Plot card is the main live-view area for the CCD output.
         plot_card = Card()
+        self._plot_card = plot_card
+        plot_card.add_widget(self._section_title(SPECTRUM_CARD_TITLE_TEXT))
         self._plot_card = plot_card
         plot_card.add_widget(self._section_title(SPECTRUM_CARD_TITLE_TEXT))
         self.stream_label = Label(
             text=SPECTRUM_CARD_WAITING_STREAM_MARKUP,
+            text=SPECTRUM_CARD_WAITING_STREAM_MARKUP,
             markup=True,
             size_hint_y=None,
+            height=HEADER_NOTICE_HEIGHT,
             height=HEADER_NOTICE_HEIGHT,
             halign="left",
             valign="middle",
         )
         self._configure_label_wrapping(self.stream_label)
+        self._configure_label_wrapping(self.stream_label)
         plot_card.add_widget(self.stream_label)
+
+        # Plot shell has a fixed-width y-axis column and a flexible plot column.
+        plot_shell = BoxLayout(orientation="horizontal", spacing=CARD_GAP, size_hint_y=1.0)
 
         # Plot shell has a fixed-width y-axis column and a flexible plot column.
         plot_shell = BoxLayout(orientation="horizontal", spacing=CARD_GAP, size_hint_y=1.0)
@@ -805,7 +1043,11 @@ class DesktopSpectrometerApp(App):
             spacing=dp(0),
             size_hint_x=None,
             width=AXIS_COLUMN_WIDTH,
+            width=AXIS_COLUMN_WIDTH,
         )
+        self.plot_y_max_label = self._axis_label("1.0", valign="top")
+        self.plot_y_mid_label = self._axis_label("0.5", valign="middle")
+        self.plot_y_min_label = self._axis_label("0.0", valign="bottom")
         self.plot_y_max_label = self._axis_label("1.0", valign="top")
         self.plot_y_mid_label = self._axis_label("0.5", valign="middle")
         self.plot_y_min_label = self._axis_label("0.0", valign="bottom")
@@ -817,12 +1059,16 @@ class DesktopSpectrometerApp(App):
         plot_shell.add_widget(y_axis_column)
 
         # Plot column contains the graph canvas and the x-axis labels below it.
+        # Plot column contains the graph canvas and the x-axis labels below it.
         plot_column = BoxLayout(orientation="vertical", spacing=dp(4), size_hint_y=1.0)
         self.plot = SpectrumPlot(size_hint_y=1.0)
         self.plot.set_cursor_callback(self._handle_plot_cursor)
         self.plot.set_adc_range(0.0, 1.0)
+        self.plot.set_cursor_callback(self._handle_plot_cursor)
+        self.plot.set_adc_range(0.0, 1.0)
         plot_column.add_widget(self.plot)
 
+        x_axis_row = BoxLayout(size_hint_y=None, height=X_AXIS_HEIGHT)
         x_axis_row = BoxLayout(size_hint_y=None, height=X_AXIS_HEIGHT)
         self.plot_x_start_label = self._axis_label("0", halign="left")
         self.plot_x_mid_label = self._axis_label("0", halign="center")
@@ -1160,13 +1406,18 @@ class DesktopSpectrometerApp(App):
 
     def on_start(self) -> None:
         """Purpose: start periodic refresh tasks after the UI loads. Rationale: timers should only begin once the window exists."""
+        """Purpose: start periodic refresh tasks after the UI loads. Rationale: timers should only begin once the window exists."""
         self.refresh_ports()
+        # Plot refresh is allowed to run fast; status/log refresh runs slower to
+        # keep the UI responsive.
         # Plot refresh is allowed to run fast; status/log refresh runs slower to
         # keep the UI responsive.
         plot_refresh_s = min(
             max(self.runtime.state_manager.get_user_config().ui.refresh_interval_ms / 1000.0, 0.001),
             1.0 / MAX_PLOT_REFRESH_HZ,
+            1.0 / MAX_PLOT_REFRESH_HZ,
         )
+        status_refresh_s = max(MIN_WIDE_STATUS_REFRESH_S, plot_refresh_s * 12.0)
         status_refresh_s = max(MIN_WIDE_STATUS_REFRESH_S, plot_refresh_s * 12.0)
         Clock.schedule_interval(self.refresh_plot, plot_refresh_s)
         Clock.schedule_interval(self.refresh_status, status_refresh_s)
@@ -1181,16 +1432,20 @@ class DesktopSpectrometerApp(App):
     def on_stop(self) -> None:
         """Purpose: clean up the device connection on app exit. Rationale: the serial port should not be left open after closing the window."""
         Window.unbind(size=self._apply_responsive_layout)
+        """Purpose: clean up the device connection on app exit. Rationale: the serial port should not be left open after closing the window."""
+        Window.unbind(size=self._apply_responsive_layout)
         if self.runtime.transport.is_connected():
             self.runtime.command_service.disconnect()
 
     def refresh_ports(self, *_args) -> None:
+        """Purpose: refresh the COM-port choices shown in the UI. Rationale: devices may be plugged in or removed while the app is open."""
         """Purpose: refresh the COM-port choices shown in the UI. Rationale: devices may be plugged in or removed while the app is open."""
         ports = self.runtime.command_service.list_serial_ports()
         devices = [item["device"] for item in ports]
         if self.port_spinner is None:
             return
 
+        # Prefer the saved port, then the current selection, then the first device found.
         # Prefer the saved port, then the current selection, then the first device found.
         self.port_spinner.values = devices
         remembered = self.runtime.state_manager.get_user_config().serial.port
@@ -1203,20 +1458,25 @@ class DesktopSpectrometerApp(App):
             self.port_spinner.text = devices[0]
         else:
             self.port_spinner.text = CONNECTION_CARD_NO_PORTS_TEXT
+            self.port_spinner.text = CONNECTION_CARD_NO_PORTS_TEXT
 
         self.set_notice(f"Detected {len(devices)} serial port(s).")
 
     def connect_device(self, *_args) -> None:
         """Purpose: connect using the current UI settings. Rationale: button clicks should flow through one method that validates input first."""
+        """Purpose: connect using the current UI settings. Rationale: button clicks should flow through one method that validates input first."""
         port = None if self.port_spinner is None else self.port_spinner.text
+        if port == CONNECTION_CARD_NO_PORTS_TEXT:
         if port == CONNECTION_CARD_NO_PORTS_TEXT:
             port = None
 
+        result = self.runtime.command_service.connect(port=port)
         result = self.runtime.command_service.connect(port=port)
         self.set_notice(result.message)
         self.refresh_view()
 
     def disconnect_device(self, *_args) -> None:
+        """Purpose: disconnect from the current device. Rationale: the UI should expose a direct way to end the session cleanly."""
         """Purpose: disconnect from the current device. Rationale: the UI should expose a direct way to end the session cleanly."""
         result = self.runtime.command_service.disconnect()
         self.set_notice(result.message)
@@ -1225,9 +1485,12 @@ class DesktopSpectrometerApp(App):
     def save_user_config(self, *_args) -> None:
         """Purpose: save current connection and UI settings. Rationale: user preferences should persist across restarts."""
         if self.port_spinner is None:
+        """Purpose: save current connection and UI settings. Rationale: user preferences should persist across restarts."""
+        if self.port_spinner is None:
             return
 
         config = self.runtime.state_manager.get_user_config()
+        config.serial.port = None if self.port_spinner.text == CONNECTION_CARD_NO_PORTS_TEXT else self.port_spinner.text
         config.serial.port = None if self.port_spinner.text == CONNECTION_CARD_NO_PORTS_TEXT else self.port_spinner.text
         path = self.runtime.config_store.save(config)
         self.runtime.command_service.apply_user_config(config)
@@ -1429,6 +1692,7 @@ class DesktopSpectrometerApp(App):
             or self.qe_checkbox is None
         ):
             return None
+            return None
 
         try:
             coefficients = self._parse_float_vector(self.wavelength_input.text)
@@ -1472,6 +1736,7 @@ class DesktopSpectrometerApp(App):
 
     def export_session(self, *_args) -> None:
         """Purpose: export buffered frames to CSV. Rationale: captured data should be easy to save without leaving the app."""
+        """Purpose: export buffered frames to CSV. Rationale: captured data should be easy to save without leaving the app."""
         path = self.runtime.session_manager.export_csv()
         self.runtime.command_service.refresh_session_status()
         self.set_notice(f"Exported session to {path}.")
@@ -1479,12 +1744,14 @@ class DesktopSpectrometerApp(App):
 
     def reset_session(self, *_args) -> None:
         """Purpose: clear the current session buffer. Rationale: users often want a fresh capture run without restarting the app."""
+        """Purpose: clear the current session buffer. Rationale: users often want a fresh capture run without restarting the app."""
         self.runtime.session_manager.reset()
         self.runtime.command_service.refresh_session_status()
         self.set_notice("Session buffer cleared.")
         self.refresh_view()
 
     def send_raw_command(self, *_args) -> None:
+        """Purpose: send a raw command string to the device. Rationale: advanced control and debugging should be available from the UI."""
         """Purpose: send a raw command string to the device. Rationale: advanced control and debugging should be available from the UI."""
         if self.command_input is None:
             return
@@ -1494,8 +1761,10 @@ class DesktopSpectrometerApp(App):
 
     def refresh_status(self, *_args) -> None:
         """Purpose: refresh slower-changing text fields. Rationale: status labels and logs do not need the same rate as the plot."""
+        """Purpose: refresh slower-changing text fields. Rationale: status labels and logs do not need the same rate as the plot."""
         snapshot = self.runtime.state_manager.snapshot(include_spectrum=False)
 
+        # Connection and firmware banner fields summarize the device state.
         # Connection and firmware banner fields summarize the device state.
         if self.status_label is not None:
             port_text = snapshot.device.port or ""
@@ -1529,10 +1798,12 @@ class DesktopSpectrometerApp(App):
 
     def refresh_plot(self, *_args) -> None:
         """Purpose: refresh the live spectrum graph and its labels. Rationale: the plot is the fastest-changing part of the UI."""
+        """Purpose: refresh the live spectrum graph and its labels. Rationale: the plot is the fastest-changing part of the UI."""
         spectrum = self.runtime.state_manager.latest_spectrum()
         device_config = self.runtime.state_manager.get_user_config().device
         calibration_config = self.runtime.state_manager.get_calibration_config()
         expected_samples = device_config.sample_count
+        normalized_max = 1.0
         normalized_max = 1.0
         effective_start_default = device_config.effective_start_index
         effective_end_default = max(
@@ -1548,9 +1819,13 @@ class DesktopSpectrometerApp(App):
         if spectrum is not None:
             plot_source = spectrum.live_display_counts or spectrum.adc_counts
             total_samples = len(plot_source)
+            plot_source = spectrum.live_display_counts or spectrum.adc_counts
+            total_samples = len(plot_source)
             full_frame_ready = total_samples >= expected_samples
 
             if full_frame_ready:
+                # Only the effective CCD pixels are plotted for full frames, so
+                # dummy leading/trailing clocks do not dominate the display.
                 # Only the effective CCD pixels are plotted for full frames, so
                 # dummy leading/trailing clocks do not dominate the display.
                 start = spectrum.effective_start_index
@@ -1563,7 +1838,16 @@ class DesktopSpectrometerApp(App):
                 stream_markup = SPECTRUM_CARD_FULL_FRAME_MARKUP_TEMPLATE.format(
                     start=start,
                     end=max(end - 1, start),
+                display_values = plot_source[start:end]
+                stream_markup = SPECTRUM_CARD_FULL_FRAME_MARKUP_TEMPLATE.format(
+                    start=start,
+                    end=max(end - 1, start),
                 )
+                layout_text = SPECTRUM_CARD_LAYOUT_FULL_TEMPLATE.format(
+                    total=total_samples,
+                    effective=len(display_values),
+                    leading=start,
+                    trailing=max(total_samples - end, 0),
                 layout_text = SPECTRUM_CARD_LAYOUT_FULL_TEMPLATE.format(
                     total=total_samples,
                     effective=len(display_values),
@@ -1573,7 +1857,13 @@ class DesktopSpectrometerApp(App):
             else:
                 # Preview-only mode intentionally plots the exact short stream the
                 # device sent so the UI does not invent missing data.
+                # Preview-only mode intentionally plots the exact short stream the
+                # device sent so the UI does not invent missing data.
                 display_indices = range(total_samples)
+                display_values = plot_source
+                stream_markup = SPECTRUM_CARD_PREVIEW_MARKUP_TEMPLATE.format(
+                    actual=total_samples,
+                    expected=expected_samples,
                 display_values = plot_source
                 stream_markup = SPECTRUM_CARD_PREVIEW_MARKUP_TEMPLATE.format(
                     actual=total_samples,
@@ -1587,9 +1877,12 @@ class DesktopSpectrometerApp(App):
             self.layout_label.text = layout_text
         if self.plot_y_max_label is not None:
             self.plot_y_max_label.text = "1.0"
+            self.plot_y_max_label.text = "1.0"
         if self.plot_y_mid_label is not None:
             self.plot_y_mid_label.text = "0.5"
+            self.plot_y_mid_label.text = "0.5"
         if self.plot_y_min_label is not None:
+            self.plot_y_min_label.text = "0.0"
             self.plot_y_min_label.text = "0.0"
         if display_indices:
             x_start = display_indices[0]
@@ -1609,6 +1902,9 @@ class DesktopSpectrometerApp(App):
         if self.plot_x_end_label is not None:
             self.plot_x_end_label.text = axis_end_text
         if self.plot is not None:
+            self.plot.set_adc_range(0.0, normalized_max)
+            # This signature prevents redrawing the same spectrum repeatedly when
+            # the timer fires faster than new frames arrive.
             self.plot.set_adc_range(0.0, normalized_max)
             # This signature prevents redrawing the same spectrum repeatedly when
             # the timer fires faster than new frames arrive.
@@ -1659,9 +1955,11 @@ class DesktopSpectrometerApp(App):
                 f"Graph Refresh: {refresh_hz:.1f} Hz"
                 if refresh_hz > 0.0
                 else SPECTRUM_CARD_REFRESH_LABEL_TEXT
+                else SPECTRUM_CARD_REFRESH_LABEL_TEXT
             )
 
     def refresh_view(self, *_args) -> None:
+        """Purpose: refresh both status and plot sections together. Rationale: some UI actions need an immediate full refresh."""
         """Purpose: refresh both status and plot sections together. Rationale: some UI actions need an immediate full refresh."""
         self.refresh_status()
         self.refresh_plot()
@@ -1723,15 +2021,18 @@ class DesktopSpectrometerApp(App):
 
     def _record_plot_update(self) -> None:
         """Purpose: record when the plot changed. Rationale: measured refresh speed should reflect real redraw activity."""
+        """Purpose: record when the plot changed. Rationale: measured refresh speed should reflect real redraw activity."""
         self._plot_update_times.append(perf_counter())
 
     def _current_plot_refresh_hz(self) -> float:
+        """Purpose: estimate the plot refresh rate. Rationale: users need feedback on how quickly new frames are reaching the graph."""
         """Purpose: estimate the plot refresh rate. Rationale: users need feedback on how quickly new frames are reaching the graph."""
         if len(self._plot_update_times) < 2:
             return 0.0
 
         newest = self._plot_update_times[-1]
         oldest = self._plot_update_times[0]
+        if perf_counter() - newest > PLOT_REFRESH_STALE_S:
         if perf_counter() - newest > PLOT_REFRESH_STALE_S:
             return 0.0
 
@@ -1742,6 +2043,7 @@ class DesktopSpectrometerApp(App):
         return (len(self._plot_update_times) - 1) / elapsed_s
 
     def set_notice(self, message: str) -> None:
+        """Purpose: update the header notice text. Rationale: one central status message keeps user feedback easy to find."""
         """Purpose: update the header notice text. Rationale: one central status message keeps user feedback easy to find."""
         if self.notice_label is not None:
             self.notice_label.text = message
@@ -1921,7 +2223,10 @@ class DesktopSpectrometerApp(App):
             markup=True,
             font_size=f"{SECTION_TITLE_FONT_SP}sp",
             color=TEXT_PRIMARY_RGBA,
+            font_size=f"{SECTION_TITLE_FONT_SP}sp",
+            color=TEXT_PRIMARY_RGBA,
             size_hint_y=None,
+            height=HEADER_NOTICE_HEIGHT,
             height=HEADER_NOTICE_HEIGHT,
             halign="left",
             valign="middle",
@@ -1931,14 +2236,27 @@ class DesktopSpectrometerApp(App):
     def _info_label(self, text: str) -> Label:
         """Purpose: create a standard info label. Rationale: repeated UI label styling should come from one helper."""
         label = Label(
+        return self._register_section_title(label)
+
+    def _info_label(self, text: str) -> Label:
+        """Purpose: create a standard info label. Rationale: repeated UI label styling should come from one helper."""
+        label = Label(
             text=text,
             color=TEXT_SECONDARY_RGBA,
+            color=TEXT_SECONDARY_RGBA,
             size_hint_y=None,
+            height=INFO_LABEL_HEIGHT,
             height=INFO_LABEL_HEIGHT,
             halign="left",
             valign="middle",
             font_size=f"{BODY_FONT_SP}sp",
+            font_size=f"{BODY_FONT_SP}sp",
         )
+        return self._register_info_label(label)
+
+    def _small_label(self, text: str) -> Label:
+        """Purpose: create smaller explanatory text. Rationale: helper text should be visually distinct from live status labels."""
+        label = Label(
         return self._register_info_label(label)
 
     def _small_label(self, text: str) -> Label:
@@ -1947,14 +2265,19 @@ class DesktopSpectrometerApp(App):
             text=text,
             color=TEXT_TERTIARY_RGBA,
             font_size=f"{SMALL_FONT_SP}sp",
+            color=TEXT_TERTIARY_RGBA,
+            font_size=f"{SMALL_FONT_SP}sp",
             size_hint_y=None,
+            height=SMALL_LABEL_HEIGHT,
             height=SMALL_LABEL_HEIGHT,
             halign="left",
             valign="top",
         )
         return self._register_small_label(label)
+        return self._register_small_label(label)
 
     def _axis_label(
+        self,
         self,
         text: str,
         *,
@@ -1963,7 +2286,11 @@ class DesktopSpectrometerApp(App):
     ) -> Label:
         """Purpose: create a plot axis label. Rationale: axis labels share a compact style that is easier to manage in one helper."""
         label = Label(
+        """Purpose: create a plot axis label. Rationale: axis labels share a compact style that is easier to manage in one helper."""
+        label = Label(
             text=text,
+            color=TEXT_TERTIARY_RGBA,
+            font_size=f"{AXIS_FONT_SP}sp",
             color=TEXT_TERTIARY_RGBA,
             font_size=f"{AXIS_FONT_SP}sp",
             halign=halign,
@@ -1971,12 +2298,21 @@ class DesktopSpectrometerApp(App):
         )
         self._configure_label_wrapping(label)
         return self._register_axis_label(label)
+        self._configure_label_wrapping(label)
+        return self._register_axis_label(label)
 
+    def _button(self, text: str, handler, **kwargs) -> Button:
+        """Purpose: create a styled button bound to a handler. Rationale: button look-and-feel should stay consistent across the UI."""
     def _button(self, text: str, handler, **kwargs) -> Button:
         """Purpose: create a styled button bound to a handler. Rationale: button look-and-feel should stay consistent across the UI."""
         button = Button(
             text=text,
             background_normal="",
+            background_color=BUTTON_BACKGROUND_RGBA,
+            color=BUTTON_TEXT_RGBA,
+            font_size=f"{BODY_FONT_SP}sp",
+            halign="center",
+            valign="middle",
             background_color=BUTTON_BACKGROUND_RGBA,
             color=BUTTON_TEXT_RGBA,
             font_size=f"{BODY_FONT_SP}sp",
@@ -1994,10 +2330,66 @@ class DesktopSpectrometerApp(App):
                 ),
             )
         )
+        button.bind(
+            size=lambda instance, _value: setattr(
+                instance,
+                "text_size",
+                (
+                    max(instance.width - BUTTON_TEXT_PAD_X, dp(40)),
+                    max(instance.height - BUTTON_TEXT_PAD_Y, dp(20)),
+                ),
+            )
+        )
         button.bind(on_release=handler)
+        self._buttons.append(button)
         self._buttons.append(button)
         return button
 
+    def _checkbox_row(self, text: str, checkbox: CheckBox) -> BoxLayout:
+        """Purpose: lay out a checkbox with its label. Rationale: calibration toggles should use one compact reusable row pattern."""
+        row = BoxLayout(size_hint_y=None, height=CHECKBOX_ROW_HEIGHT, spacing=CARD_GAP)
+        checkbox.size_hint = (None, None)
+        checkbox.size = (CALIBRATION_CHECKBOX_SIZE, CALIBRATION_CHECKBOX_SIZE)
+        checkbox_box = BoxLayout(
+            size_hint_x=None,
+            width=CALIBRATION_CHECKBOX_BOX_WIDTH,
+            size_hint_y=None,
+            height=CALIBRATION_CHECKBOX_BOX_HEIGHT,
+            padding=dp(4),
+        )
+        with checkbox_box.canvas.before:
+            Color(*CALIBRATION_CHECKBOX_BACKGROUND_RGBA)
+            checkbox_box._background = RoundedRectangle(radius=[8])  # type: ignore[attr-defined]
+            Color(*CALIBRATION_CHECKBOX_BORDER_RGBA)
+            checkbox_box._border = Line(rounded_rectangle=[0, 0, 0, 0, 8], width=1.0)  # type: ignore[attr-defined]
+        checkbox_box.bind(
+            pos=lambda instance, _value: self._update_checkbox_box_canvas(instance),
+            size=lambda instance, _value: self._update_checkbox_box_canvas(instance),
+        )
+        checkbox_box.add_widget(checkbox)
+        row.add_widget(checkbox_box)
+        state_label = Label(
+            text=CALIBRATION_CHECKBOX_STATE_ON_TEXT if checkbox.active else CALIBRATION_CHECKBOX_STATE_OFF_TEXT,
+            color=CALIBRATION_CHECKBOX_STATE_ON_RGBA if checkbox.active else CALIBRATION_CHECKBOX_STATE_OFF_RGBA,
+            size_hint_x=None,
+            width=dp(36),
+            halign="center",
+            valign="middle",
+            font_size=f"{BODY_FONT_SP}sp",
+        )
+        self._configure_label_wrapping(state_label)
+        checkbox.bind(active=lambda _instance, value: self._update_checkbox_state_label(state_label, value))
+        row.add_widget(state_label)
+        label = Label(
+            text=text,
+            color=TEXT_SECONDARY_RGBA,
+            halign="left",
+            valign="middle",
+            font_size=f"{BODY_FONT_SP}sp",
+        )
+        self._configure_label_wrapping(label)
+        row.add_widget(label)
+        self._checkbox_rows.append(row)
     def _checkbox_row(self, text: str, checkbox: CheckBox) -> BoxLayout:
         """Purpose: lay out a checkbox with its label. Rationale: calibration toggles should use one compact reusable row pattern."""
         row = BoxLayout(size_hint_y=None, height=CHECKBOX_ROW_HEIGHT, spacing=CARD_GAP)
@@ -2224,5 +2616,6 @@ class DesktopSpectrometerApp(App):
 
 
 def run_desktop_app(runtime: AppRuntime) -> None:
+    """Purpose: launch the Kivy desktop app. Rationale: the entrypoint should only need one simple call to start the UI."""
     """Purpose: launch the Kivy desktop app. Rationale: the entrypoint should only need one simple call to start the UI."""
     DesktopSpectrometerApp(runtime).run()

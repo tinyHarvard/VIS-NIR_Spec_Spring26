@@ -21,11 +21,13 @@ MIN_NORMALIZATION_DENOMINATOR = 1e-9
 
 class SpectrumBuilder:
     """Purpose: build app-level spectrum frames and export columns. Rationale: frame conversion should stay separate from transport parsing."""
+    """Purpose: build app-level spectrum frames and export columns. Rationale: frame conversion should stay separate from transport parsing."""
     def __init__(
         self,
         calibration_manager: CalibrationManager,
         device_config: DeviceConfig,
     ) -> None:
+        """Purpose: store processing dependencies and caches. Rationale: repeated export calculations should reuse device settings and wavelength maps."""
         """Purpose: store processing dependencies and caches. Rationale: repeated export calculations should reuse device settings and wavelength maps."""
         self._calibration_manager = calibration_manager
         self._device_config = device_config
@@ -33,9 +35,12 @@ class SpectrumBuilder:
 
     def update_device_config(self, device_config: DeviceConfig) -> None:
         """Purpose: store updated device settings. Rationale: export calculations should follow the latest ADC and geometry configuration."""
+        """Purpose: store updated device settings. Rationale: export calculations should follow the latest ADC and geometry configuration."""
         self._device_config = device_config
 
     def build_from_frame_packet(self, packet: FramePacket) -> SpectrumFrame:
+        """Purpose: wrap a parsed frame packet as a spectrum frame. Rationale: the rest of the app should work with one stable frame type."""
+        display_counts, dark_reference = self._build_live_display_counts(packet.adc_counts)
         """Purpose: wrap a parsed frame packet as a spectrum frame. Rationale: the rest of the app should work with one stable frame type."""
         display_counts, dark_reference = self._build_live_display_counts(packet.adc_counts)
         return SpectrumFrame(
@@ -49,11 +54,21 @@ class SpectrumBuilder:
             adc_counts=packet.adc_counts,
             live_display_counts=display_counts.tolist(),
             dark_reference_count=dark_reference,
+            live_display_counts=display_counts.tolist(),
+            dark_reference_count=dark_reference,
             notes=(
                 "Captured from TIM4-synchronized USB CDC binary frames. Frame start is "
                 "the CCD ICG low-to-high edge and frame end is the CCD ICG high-to-low edge."
             ),
         )
+
+    def rebuild_live_frame(self, frame: SpectrumFrame) -> SpectrumFrame:
+        """Purpose: rebuild one stored frame using the current calibration settings. Rationale: UI calibration toggles should update the latest display immediately."""
+        display_counts, dark_reference = self._build_live_display_counts(frame.adc_counts)
+        updated = frame.model_copy(deep=True)
+        updated.live_display_counts = display_counts.tolist()
+        updated.dark_reference_count = dark_reference
+        return updated
 
     def rebuild_live_frame(self, frame: SpectrumFrame) -> SpectrumFrame:
         """Purpose: rebuild one stored frame using the current calibration settings. Rationale: UI calibration toggles should update the latest display immediately."""
