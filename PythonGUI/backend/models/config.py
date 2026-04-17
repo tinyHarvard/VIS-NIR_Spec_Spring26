@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 DEFAULT_SERIAL_TIMEOUT_S = 0.1
@@ -12,6 +14,10 @@ DEFAULT_ADC_REFERENCE_VOLTS = 3.3
 DEFAULT_UI_REFRESH_INTERVAL_MS = 8
 DEFAULT_MAX_SESSION_FRAMES = 500
 DEFAULT_WAVELENGTH_COEFFICIENTS = [0.0, 1.0]
+DEFAULT_WAVELENGTH_FIT_ORDER = 3
+DEFAULT_BIAS_CAPTURE_FRAME_COUNT = 8
+DEFAULT_QE_NORMALIZATION_WAVELENGTH_NM = 550.0
+DEFAULT_DISPLAY_NORMALIZATION_MODE = "absolute_saturation"
 
 
 class SerialConfig(BaseModel):
@@ -44,10 +50,30 @@ class UserConfig(BaseModel):
     ui: UIConfig = Field(default_factory=UIConfig)
 
 
+class PixelMappingPoint(BaseModel):
+    """Purpose: store one pixel-to-wavelength reference line. Rationale: wavelength fitting should use explicit calibration pairs rather than only raw coefficient text."""
+    pixel_index: float
+    wavelength_nm: float
+
+
+class SpectralResponsePoint(BaseModel):
+    """Purpose: store one wavelength-dependent response sample. Rationale: QE and response curves are easiest to edit as wavelength/value pairs."""
+    wavelength_nm: float
+    relative_value: float
+
+
 class CalibrationConfig(BaseModel):
     """Purpose: store calibration choices and correction arrays. Rationale: signal correction should be data-driven, not hard-coded."""
     apply_dark_subtraction: bool = True
     apply_intensity_correction: bool = True
+    apply_quantum_efficiency_correction: bool = False
+    display_normalization_mode: Literal["auto_peak", "absolute_saturation"] = DEFAULT_DISPLAY_NORMALIZATION_MODE
     wavelength_coefficients: list[float] = Field(default_factory=lambda: list(DEFAULT_WAVELENGTH_COEFFICIENTS))
+    wavelength_fit_order: int = DEFAULT_WAVELENGTH_FIT_ORDER
+    pixel_mapping_points: list[PixelMappingPoint] = Field(default_factory=list)
+    bias_capture_frame_count: int = DEFAULT_BIAS_CAPTURE_FRAME_COUNT
+    bias_counts: list[float] = Field(default_factory=list)
     dark_offset_counts: list[float] = Field(default_factory=list)
     intensity_correction: list[float] = Field(default_factory=list)
+    quantum_efficiency_points: list[SpectralResponsePoint] = Field(default_factory=list)
+    quantum_efficiency_normalization_wavelength_nm: float | None = DEFAULT_QE_NORMALIZATION_WAVELENGTH_NM

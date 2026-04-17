@@ -814,3 +814,68 @@ serial.serialutil.SerialException: could not open port 'COM3': PermissionError(1
 2026-04-16 19:24:11,349 INFO kivy: WindowSDL: Window is now on display 0
 2026-04-16 19:24:11,350 INFO kivy: WindowSDL: Window is now on display 2
 2026-04-16 19:31:06,826 INFO kivy: Base: Leaving application in progress...
+2026-04-16 22:58:24,637 INFO kivy: GL: NPOT texture support is available
+2026-04-16 22:58:24,734 INFO kivy: Base: Start application main loop
+2026-04-16 23:00:39,830 INFO kivy: Base: Leaving application in progress...
+2026-04-16 23:00:50,211 INFO kivy: GL: NPOT texture support is available
+2026-04-16 23:00:50,286 INFO kivy: Base: Start application main loop
+2026-04-16 23:44:54,130 INFO kivy: Base: Leaving application in progress...
+2026-04-16 23:45:19,754 INFO kivy: GL: NPOT texture support is available
+2026-04-16 23:45:19,877 INFO kivy: Base: Start application main loop
+2026-04-16 23:49:59,917 INFO kivy: Base: Leaving application in progress...
+2026-04-16 23:50:06,532 INFO kivy: GL: NPOT texture support is available
+2026-04-16 23:50:06,641 INFO kivy: Base: Start application main loop
+2026-04-16 23:52:34,274 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-17 00:02:26,064 INFO kivy: Base: Leaving application in progress...
+2026-04-17 00:02:34,068 INFO kivy: GL: NPOT texture support is available
+2026-04-17 00:02:34,185 INFO kivy: Base: Start application main loop
+2026-04-17 00:02:36,173 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-17 00:05:41,237 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-17 00:14:54,372 INFO kivy: Clipboard: Provider: winctypes
+2026-04-17 00:19:08,739 INFO kivy: Base: Leaving application in progress...
+2026-04-17 00:19:26,573 INFO kivy: GL: NPOT texture support is available
+2026-04-17 00:19:26,830 INFO kivy: Base: Start application main loop
+2026-04-17 00:26:48,155 INFO kivy: Base: Leaving application in progress...
+2026-04-17 00:26:58,992 INFO kivy: GL: NPOT texture support is available
+2026-04-17 00:26:59,018 WARNING kivy: stderr: Traceback (most recent call last):
+2026-04-17 00:26:59,019 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\desktop_app.py", line 49, in <module>
+2026-04-17 00:26:59,019 WARNING kivy: stderr:     main()
+2026-04-17 00:26:59,020 WARNING kivy: stderr:     ~~~~^^
+2026-04-17 00:26:59,020 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\desktop_app.py", line 45, in main
+2026-04-17 00:26:59,020 WARNING kivy: stderr:     run_desktop_app(runtime)
+2026-04-17 00:26:59,020 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~^^^^^^^^^
+2026-04-17 00:26:59,021 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\frontend\kivy_app.py", line 2212, in run_desktop_app
+2026-04-17 00:26:59,021 WARNING kivy: stderr:     DesktopSpectrometerApp(runtime).run()
+2026-04-17 00:26:59,021 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+2026-04-17 00:26:59,021 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\kivy\app.py", line 955, in run
+2026-04-17 00:26:59,021 WARNING kivy: stderr:     self._run_prepare()
+2026-04-17 00:26:59,022 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~~~^^
+2026-04-17 00:26:59,022 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\kivy\app.py", line 925, in _run_prepare
+2026-04-17 00:26:59,022 WARNING kivy: stderr:     root = self.build()
+2026-04-17 00:26:59,022 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\frontend\kivy_app.py", line 892, in build
+2026-04-17 00:26:59,022 WARNING kivy: stderr:     CALIBRATION_SETTINGS_CARD_ABSOLUTE_TEXT
+2026-04-17 00:26:59,023 WARNING kivy: stderr: NameError: name 'CALIBRATION_SETTINGS_CARD_ABSOLUTE_TEXT' is not defined. Did you mean: 'CALIBRATION_SETTINGS_CARD_TITLE_TEXT'?
+2026-04-17 00:27:03,770 INFO kivy: GL: NPOT texture support is available
+2026-04-17 00:27:03,784 WARNING kivy: stderr: Traceback (most recent call last):
+2026-04-17 00:27:03,784 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\desktop_app.py", line 49, in <module>
+2026-04-17 00:27:03,785 WARNING kivy: stderr:     main()
+2026-04-17 00:27:03,785 WARNING kivy: stderr:     ~~~~^^
+2026-04-17 00:27:03,785 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\desktop_app.py", line 45, in main
+2026-04-17 00:27:03,785 WARNING kivy: stderr:     run_desktop_app(runtime)
+2026-04-17 00:27:03,785 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~^^^^^^^^^
+2026-04-17 00:27:03,786 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\frontend\kivy_app.py", line 2212, in run_desktop_app
+2026-04-17 00:27:03,786 WARNING kivy: stderr:     DesktopSpectrometerApp(runtime).run()
+2026-04-17 00:27:03,786 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+2026-04-17 00:27:03,786 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\kivy\app.py", line 955, in run
+2026-04-17 00:27:03,787 WARNING kivy: stderr:     self._run_prepare()
+2026-04-17 00:27:03,787 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~~~^^
+2026-04-17 00:27:03,787 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\kivy\app.py", line 925, in _run_prepare
+2026-04-17 00:27:03,787 WARNING kivy: stderr:     root = self.build()
+2026-04-17 00:27:03,787 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\frontend\kivy_app.py", line 892, in build
+2026-04-17 00:27:03,787 WARNING kivy: stderr:     CALIBRATION_SETTINGS_CARD_ABSOLUTE_TEXT
+2026-04-17 00:27:03,787 WARNING kivy: stderr: NameError: name 'CALIBRATION_SETTINGS_CARD_ABSOLUTE_TEXT' is not defined. Did you mean: 'CALIBRATION_SETTINGS_CARD_TITLE_TEXT'?
+2026-04-17 00:29:23,192 INFO kivy: GL: NPOT texture support is available
+2026-04-17 00:29:23,437 INFO kivy: Base: Start application main loop
+2026-04-17 00:41:26,612 INFO kivy: Clipboard: Provider: winctypes
+2026-04-17 00:50:42,486 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-17 00:58:10,964 INFO kivy: Base: Leaving application in progress...

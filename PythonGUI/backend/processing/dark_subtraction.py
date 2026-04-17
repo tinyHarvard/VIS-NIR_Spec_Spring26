@@ -11,7 +11,7 @@ def estimate_dark_level(
     start_index: int,
     end_index: int,
 ) -> float:
-    """Purpose: estimate one dark baseline from a shielded-pixel region. Rationale: some sensors provide covered pixels that can be averaged each frame."""
+    """Purpose: estimate one frame-wise dark offset from shielded pixels. Rationale: the calibration document uses the median of dark pixels for the per-frame offset term."""
     data = np.asarray(values, dtype=float)
     if data.size == 0:
         return 0.0
@@ -21,7 +21,7 @@ def estimate_dark_level(
     if stop <= start:
         return 0.0
 
-    return float(np.mean(data[start:stop]))
+    return float(np.median(data[start:stop]))
 
 
 def subtract_dark_level(
