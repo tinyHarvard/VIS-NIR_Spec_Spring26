@@ -31,11 +31,54 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef struct __attribute__((packed))
+{
+  uint32_t magic;
+  uint8_t version;
+  uint8_t packet_type;
+  uint16_t reserved;
+  uint32_t frame_id;
+  uint16_t sample_count;
+  uint16_t effective_start;
+  uint16_t effective_count;
+  uint16_t flags;
+  uint32_t payload_bytes;
+} CcdUsbFrameHeader;
+
+typedef struct
+{
+  uint16_t samples[3694];
+  volatile uint32_t frame_id;
+  volatile uint16_t flags;
+  volatile uint8_t ready;
+} CcdFrameSlot;
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+enum
+{
+  CCD_LINE_SAMPLE_COUNT = 3694,
+  CCD_EFFECTIVE_START_INDEX = 32,
+  CCD_EFFECTIVE_SAMPLE_COUNT = 3648,
+  CCD_FRAME_BUFFER_COUNT = 3,
+  CDC_TX_CHUNK_SIZE = 512
+};
+
+enum
+{
+  CCD_PACKET_MAGIC = 0x31444343UL,
+  CCD_PACKET_VERSION = 1U,
+  CCD_PACKET_TYPE_FRAME = 1U
+};
+
+enum
+{
+  CCD_FRAME_FLAG_ICG_SYNC = (1U << 0),
+  CCD_FRAME_FLAG_TIMING_FAULT = (1U << 1),
+  CCD_FRAME_FLAG_USB_TIMEOUT = (1U << 2)
+};
 
 /* USER CODE END PD */
 
@@ -55,14 +98,18 @@ TIM_HandleTypeDef htim4;
 TIM_HandleTypeDef htim5;
 
 /* USER CODE BEGIN PV */
-enum { CCD_SAMPLE_COUNT = 3694 };
-uint16_t ccd_dma_buffer[CCD_SAMPLE_COUNT];
-volatile bool ccd_dma_half_ready = false;
-volatile bool ccd_dma_full_ready = false;
-uint32_t ccd_frame_counter = 0;
-uint32_t dma_half_count = 0;
-uint32_t dma_full_count = 0;
-uint32_t last_status_tick = 0;
+CcdFrameSlot ccd_frame_slots[CCD_FRAME_BUFFER_COUNT];
+volatile int8_t ccd_active_slot = -1;
+volatile int8_t ccd_sending_slot = -1;
+volatile uint8_t ccd_next_tx_slot = 0;
+volatile uint32_t ccd_icg_cycle_counter = 0;
+volatile uint32_t ccd_frame_counter = 0;
+volatile uint32_t ccd_dma_half_count = 0;
+volatile uint32_t ccd_dma_full_count = 0;
+volatile uint32_t ccd_icg_start_count = 0;
+volatile uint32_t ccd_icg_end_count = 0;
+volatile uint32_t ccd_dropped_frame_count = 0;
+volatile uint32_t ccd_usb_timeout_count = 0;
 
 /* USER CODE END PV */
 
@@ -77,22 +124,28 @@ static void MX_TIM3_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_TIM5_Init(void);
 /* USER CODE BEGIN PFP */
-static void StartTriggeredDmaCapture(void);
 static void SendStatusLine(const char *text);
-static uint8_t CDC_Transmit_Blocking(uint8_t *buffer, uint16_t length, uint32_t timeout_ms);
+static uint8_t CDC_Transmit_Blocking(const uint8_t *buffer, uint16_t length, uint32_t timeout_ms);
+static uint8_t CDC_Transmit_All(const uint8_t *buffer, uint32_t length, uint32_t timeout_ms);
+static void StartFrameCaptureFromIcgEdge(void);
+static void AbortActiveCapture(uint16_t fault_flags);
+static int32_t AcquireFrameSlot(void);
+static int32_t FindNextReadyFrameSlot(void);
+static uint8_t SendFrameSlot(uint32_t slot_index);
+static void ReleaseFrameSlot(uint32_t slot_index);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static uint8_t CDC_Transmit_Blocking(uint8_t *buffer, uint16_t length, uint32_t timeout_ms)
+static uint8_t CDC_Transmit_Blocking(const uint8_t *buffer, uint16_t length, uint32_t timeout_ms)
 {
   uint32_t start_tick = HAL_GetTick();
   uint8_t status = USBD_BUSY;
 
   while ((HAL_GetTick() - start_tick) < timeout_ms)
   {
-    status = CDC_Transmit_FS(buffer, length);
+    status = CDC_Transmit_FS((uint8_t *)buffer, length);
     if (status == USBD_OK)
     {
       return USBD_OK;
@@ -105,15 +158,162 @@ static uint8_t CDC_Transmit_Blocking(uint8_t *buffer, uint16_t length, uint32_t 
 
 static void SendStatusLine(const char *text)
 {
-  (void)CDC_Transmit_Blocking((uint8_t *)text, (uint16_t)strlen(text), 100U);
+  (void)CDC_Transmit_Blocking((const uint8_t *)text, (uint16_t)strlen(text), 100U);
 }
 
-static void StartTriggeredDmaCapture(void)
+static uint8_t CDC_Transmit_All(const uint8_t *buffer, uint32_t length, uint32_t timeout_ms)
 {
-  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)ccd_dma_buffer, CCD_SAMPLE_COUNT) != HAL_OK)
+  uint32_t offset = 0U;
+
+  while (offset < length)
   {
-    Error_Handler();
+    uint32_t remaining = length - offset;
+    uint16_t chunk_length = (remaining > CDC_TX_CHUNK_SIZE) ? CDC_TX_CHUNK_SIZE : (uint16_t)remaining;
+    uint8_t status = CDC_Transmit_Blocking(&buffer[offset], chunk_length, timeout_ms);
+    if (status != USBD_OK)
+    {
+      return status;
+    }
+    offset += chunk_length;
   }
+
+  return USBD_OK;
+}
+
+static int32_t AcquireFrameSlot(void)
+{
+  uint32_t slot_index;
+
+  for (slot_index = 0U; slot_index < CCD_FRAME_BUFFER_COUNT; ++slot_index)
+  {
+    if ((int8_t)slot_index == ccd_active_slot)
+    {
+      continue;
+    }
+
+    if ((int8_t)slot_index == ccd_sending_slot)
+    {
+      continue;
+    }
+
+    if (ccd_frame_slots[slot_index].ready != 0U)
+    {
+      continue;
+    }
+
+    return (int32_t)slot_index;
+  }
+
+  return -1;
+}
+
+static int32_t FindNextReadyFrameSlot(void)
+{
+  uint32_t offset;
+
+  for (offset = 0U; offset < CCD_FRAME_BUFFER_COUNT; ++offset)
+  {
+    uint32_t slot_index = (ccd_next_tx_slot + offset) % CCD_FRAME_BUFFER_COUNT;
+    if (ccd_frame_slots[slot_index].ready != 0U)
+    {
+      ccd_next_tx_slot = (uint8_t)((slot_index + 1U) % CCD_FRAME_BUFFER_COUNT);
+      return (int32_t)slot_index;
+    }
+  }
+
+  return -1;
+}
+
+static void ReleaseFrameSlot(uint32_t slot_index)
+{
+  ccd_frame_slots[slot_index].ready = 0U;
+  ccd_frame_slots[slot_index].flags = 0U;
+  ccd_frame_slots[slot_index].frame_id = 0U;
+}
+
+static void AbortActiveCapture(uint16_t fault_flags)
+{
+  int8_t active_slot = ccd_active_slot;
+
+  (void)HAL_ADC_Stop_DMA(&hadc1);
+  __HAL_TIM_DISABLE(&htim2);
+
+  if (active_slot >= 0)
+  {
+    ccd_frame_slots[(uint32_t)active_slot].ready = 0U;
+    ccd_frame_slots[(uint32_t)active_slot].flags |= fault_flags;
+    ccd_frame_slots[(uint32_t)active_slot].frame_id = 0U;
+  }
+
+  ccd_active_slot = -1;
+}
+
+static void StartFrameCaptureFromIcgEdge(void)
+{
+  int32_t slot_index;
+
+  if (ccd_active_slot >= 0)
+  {
+    ccd_dropped_frame_count++;
+    AbortActiveCapture(CCD_FRAME_FLAG_TIMING_FAULT);
+  }
+
+  slot_index = AcquireFrameSlot();
+  if (slot_index < 0)
+  {
+    ccd_dropped_frame_count++;
+    return;
+  }
+
+  ccd_frame_slots[(uint32_t)slot_index].ready = 0U;
+  ccd_frame_slots[(uint32_t)slot_index].flags = CCD_FRAME_FLAG_ICG_SYNC;
+  ccd_frame_slots[(uint32_t)slot_index].frame_id = ++ccd_icg_cycle_counter;
+  ccd_active_slot = (int8_t)slot_index;
+
+  (void)HAL_ADC_Stop_DMA(&hadc1);
+  __HAL_TIM_DISABLE(&htim2);
+  __HAL_TIM_SET_COUNTER(&htim2, 0U);
+  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
+
+  if (HAL_ADC_Start_DMA(
+          &hadc1,
+          (uint32_t *)ccd_frame_slots[(uint32_t)slot_index].samples,
+          CCD_LINE_SAMPLE_COUNT) != HAL_OK)
+  {
+    ccd_dropped_frame_count++;
+    AbortActiveCapture(CCD_FRAME_FLAG_TIMING_FAULT);
+    return;
+  }
+
+  __HAL_TIM_ENABLE(&htim2);
+}
+
+static uint8_t SendFrameSlot(uint32_t slot_index)
+{
+  CcdUsbFrameHeader header;
+  uint8_t status;
+
+  header.magic = CCD_PACKET_MAGIC;
+  header.version = CCD_PACKET_VERSION;
+  header.packet_type = CCD_PACKET_TYPE_FRAME;
+  header.reserved = 0U;
+  header.frame_id = ccd_frame_slots[slot_index].frame_id;
+  header.sample_count = CCD_LINE_SAMPLE_COUNT;
+  header.effective_start = CCD_EFFECTIVE_START_INDEX;
+  header.effective_count = CCD_EFFECTIVE_SAMPLE_COUNT;
+  header.flags = ccd_frame_slots[slot_index].flags;
+  header.payload_bytes = (uint32_t)(CCD_LINE_SAMPLE_COUNT * sizeof(uint16_t));
+
+  status = CDC_Transmit_All((const uint8_t *)&header, (uint32_t)sizeof(header), 100U);
+  if (status != USBD_OK)
+  {
+    return status;
+  }
+
+  return CDC_Transmit_All(
+      (const uint8_t *)ccd_frame_slots[slot_index].samples,
+      header.payload_bytes,
+      100U);
 }
 
 /* USER CODE END 0 */
@@ -161,11 +361,6 @@ int main(void)
     Error_Handler();
   }
 
-  if (HAL_TIM_Base_Start(&htim2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
   if (HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1) != HAL_OK)
   {
     Error_Handler();
@@ -176,15 +371,23 @@ int main(void)
     Error_Handler();
   }
 
-  if (HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1) != HAL_OK)
+  __HAL_TIM_DISABLE(&htim2);
+  __HAL_TIM_SET_COUNTER(&htim2, 0U);
+
+  HAL_Delay(200);
+  SendStatusLine("USB CDC online\r\n");
+  SendStatusLine("ICG-synchronous binary frame stream enabled\r\n");
+  SendStatusLine("TIM4 update=ICG rising edge start, TIM4 compare=ICG falling edge stop\r\n");
+
+  if (HAL_TIM_Base_Start_IT(&htim4) != HAL_OK)
   {
     Error_Handler();
   }
 
-  HAL_Delay(200);
-  SendStatusLine("USB CDC online\r\n");
-  SendStatusLine("TIM2_TRGO (500kHz) -> ADC1 -> DMA, TIM4 ICG (8ms/7.388ms on)\r\n");
-  StartTriggeredDmaCapture();
+  if (HAL_TIM_PWM_Start_IT(&htim4, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -194,33 +397,23 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    if (ccd_dma_full_ready)
+    int32_t ready_slot = FindNextReadyFrameSlot();
+    if (ready_slot >= 0)
     {
-      uint16_t snap[4];
-      char line[160];
-
-      ccd_dma_full_ready = false;
-
       __disable_irq();
-      snap[0] = ccd_dma_buffer[0];
-      snap[1] = ccd_dma_buffer[1];
-      snap[2] = ccd_dma_buffer[2];
-      snap[3] = ccd_dma_buffer[3];
+      ccd_sending_slot = (int8_t)ready_slot;
       __enable_irq();
 
-      (void)snprintf(
-          line,
-          sizeof(line),
-          "frame=%lu samples=%u,%u,%u,%u half=%lu full=%lu\r\n",
-          (unsigned long)ccd_frame_counter,
-          (unsigned int)snap[0],
-          (unsigned int)snap[1],
-          (unsigned int)snap[2],
-          (unsigned int)snap[3],
-          (unsigned long)dma_half_count,
-          (unsigned long)dma_full_count);
+      if (SendFrameSlot((uint32_t)ready_slot) != USBD_OK)
+      {
+        ccd_usb_timeout_count++;
+        ccd_frame_slots[(uint32_t)ready_slot].flags |= CCD_FRAME_FLAG_USB_TIMEOUT;
+      }
 
-      SendStatusLine(line);
+      __disable_irq();
+      ReleaseFrameSlot((uint32_t)ready_slot);
+      ccd_sending_slot = -1;
+      __enable_irq();
     }
   }
   /* USER CODE END 3 */
@@ -230,7 +423,7 @@ static void MX_DMA_Init(void)
 {
   __HAL_RCC_DMA2_CLK_ENABLE();
 
-  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
 }
 
@@ -578,6 +771,8 @@ static void MX_TIM4_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM4_Init 2 */
+  HAL_NVIC_SetPriority(TIM4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(TIM4_IRQn);
 
   /* USER CODE END TIM4_Init 2 */
   HAL_TIM_MspPostInit(&htim4);
@@ -666,8 +861,7 @@ void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
 {
   if (hadc->Instance == ADC1)
   {
-    ccd_dma_half_ready = true;
-    dma_half_count++;
+    ccd_dma_half_count++;
   }
 }
 
@@ -675,9 +869,36 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
   if (hadc->Instance == ADC1)
   {
-    ccd_dma_full_ready = true;
-    dma_full_count++;
+    int8_t active_slot = ccd_active_slot;
+
+    __HAL_TIM_DISABLE(&htim2);
+
+    if (active_slot >= 0)
+    {
+      ccd_frame_slots[(uint32_t)active_slot].ready = 1U;
+    }
+
+    ccd_dma_full_count++;
     ccd_frame_counter++;
+    ccd_active_slot = -1;
+  }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM4)
+  {
+    ccd_icg_start_count++;
+    StartFrameCaptureFromIcgEdge();
+  }
+}
+
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM4)
+  {
+    ccd_icg_end_count++;
+    __HAL_TIM_DISABLE(&htim2);
   }
 }
 

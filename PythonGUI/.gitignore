@@ -1,0 +1,8 @@
+__pycache__/
+.venv/
+*.egg-info/
+build/
+dist/
+exports/
+configs/user.json
+configs/calibration.json

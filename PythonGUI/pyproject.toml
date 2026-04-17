@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vis-nir-spec-gui"
+version = "0.1.0"
+description = "Python desktop control app for the VIS-NIR spectrometer."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "kivy>=2.3.0",
+  "numpy>=2.0.0",
+  "pydantic>=2.8.0",
+  "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+build = [
+  "pyinstaller>=6.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*", "frontend*"]

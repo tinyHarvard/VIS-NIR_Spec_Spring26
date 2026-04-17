@@ -1,0 +1,18 @@
+{
+  "apply_dark_subtraction": true,
+  "apply_intensity_correction": true,
+  "apply_quantum_efficiency_correction": false,
+  "display_normalization_mode": "absolute_saturation",
+  "wavelength_coefficients": [
+    0.0,
+    1.0
+  ],
+  "wavelength_fit_order": 3,
+  "pixel_mapping_points": [],
+  "bias_capture_frame_count": 8,
+  "bias_counts": [],
+  "dark_offset_counts": [],
+  "intensity_correction": [],
+  "quantum_efficiency_points": [],
+  "quantum_efficiency_normalization_wavelength_nm": 550.0
+}

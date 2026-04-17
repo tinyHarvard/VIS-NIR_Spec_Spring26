@@ -1,0 +1,19 @@
+{
+  "serial": {
+    "port": "COM3",
+    "timeout_s": 0.1,
+    "reconnect_on_start": false
+  },
+  "device": {
+    "sample_count": 3694,
+    "effective_start_index": 32,
+    "effective_sample_count": 3648,
+    "trailing_dummy_count": 14,
+    "adc_resolution_bits": 12,
+    "adc_reference_volts": 3.3
+  },
+  "ui": {
+    "refresh_interval_ms": 8,
+    "max_session_frames": 500
+  }
+}
