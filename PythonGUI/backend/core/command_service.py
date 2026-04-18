@@ -9,7 +9,7 @@ from backend.core.state_manager import StateManager
 from backend.device.base_transport import BaseTransport
 from backend.device.packet_reader import DeviceStreamReader
 from backend.device.protocol import encode_raw_command
-from backend.models.config import CalibrationConfig, UserConfig
+from backend.models.config import CalibrationConfig, UserConfig, ensure_pixel_mode_without_mapping
 from backend.models.frames import BannerPacket, FramePacket, TextLinePacket
 from backend.models.status import CommandResult, ConnectionState
 from backend.processing.calibration_manager import CalibrationManager
@@ -36,7 +36,7 @@ class CommandService:
         self._spectrum_builder = spectrum_builder
         self._packet_reader = DeviceStreamReader()
         self._last_frame_id: int | None = None
-        self._legacy_preview_notice_emitted = False
+        self._frame_size_warning_emitted = False
         self._expected_sample_count = state_manager.get_user_config().device.sample_count
         self._incoming_bytes: queue.Queue[bytes | None] = queue.Queue()
         self._logger = logger or logging.getLogger(__name__)
@@ -62,7 +62,7 @@ class CommandService:
         self._packet_reader.reset()
         self._clear_pending_bytes()
         self._last_frame_id = None
-        self._legacy_preview_notice_emitted = False
+        self._frame_size_warning_emitted = False
 
         if not selected_port:
             ports = self.list_serial_ports()
@@ -103,7 +103,7 @@ class CommandService:
         self._packet_reader.reset()
         self._clear_pending_bytes()
         self._last_frame_id = None
-        self._legacy_preview_notice_emitted = False
+        self._frame_size_warning_emitted = False
         self._state_manager.reset_frame_tracking()
         self._state_manager.set_connection_state(
             ConnectionState.disconnected,
@@ -126,8 +126,8 @@ class CommandService:
         return CommandResult(
             ok=True,
             message=(
-                "Command sent over USB CDC. The current STM32 firmware does not yet "
-                "parse incoming CDC commands, so this is future-ready plumbing."
+                "Command sent over USB CDC. Device-side command handling depends on "
+                "the active STM32 firmware."
             ),
         )
 
@@ -137,13 +137,15 @@ class CommandService:
         self._spectrum_builder.update_device_config(config.device)
         self._session_manager.set_max_frames(config.ui.max_session_frames)
         self._expected_sample_count = config.device.sample_count
+        self._frame_size_warning_emitted = False
         self._state_manager.set_session_status(self._session_manager.status())
         self._state_manager.append_log("User configuration updated.")
 
     def apply_calibration_config(self, config: CalibrationConfig) -> None:
         """Purpose: apply new calibration settings. Rationale: calibration changes should flow through one controlled update point."""
-        self._calibration_manager.update_config(config)
-        self._state_manager.set_calibration_config(config)
+        normalized_config = ensure_pixel_mode_without_mapping(config)
+        self._calibration_manager.update_config(normalized_config)
+        self._state_manager.set_calibration_config(normalized_config)
         latest_spectrum = self._state_manager.latest_spectrum()
         if latest_spectrum is not None:
             self._state_manager.set_last_spectrum(
@@ -201,14 +203,14 @@ class CommandService:
 
         if isinstance(packet, FramePacket):
             if (
-                packet.sample_count < self._expected_sample_count
-                and not self._legacy_preview_notice_emitted
+                packet.sample_count != self._expected_sample_count
+                and not self._frame_size_warning_emitted
             ):
-                self._legacy_preview_notice_emitted = True
+                self._frame_size_warning_emitted = True
                 self._state_manager.append_log(
-                    "Detected a legacy preview stream from the STM32: "
-                    f"received {packet.sample_count} samples, expected {self._expected_sample_count}. "
-                    "Flash the updated full-frame firmware to view the full CCD line."
+                    "Received a frame-size mismatch from the device: "
+                    f"got {packet.sample_count} samples, expected {self._expected_sample_count}. "
+                    "Check the active firmware and device layout settings."
                 )
 
             missed_frames = 0
@@ -219,8 +221,8 @@ class CommandService:
                 )
 
             self._last_frame_id = packet.frame_counter
-            self._state_manager.update_from_frame_packet(packet, missed_frames=missed_frames)
-            spectrum = self._spectrum_builder.build_from_frame_packet(packet)
+            self._state_manager.update_from_frame(packet, missed_frames=missed_frames)
+            spectrum = self._spectrum_builder.build_from_frame(packet)
             self._state_manager.set_last_spectrum(spectrum)
             self._session_manager.append_frame(spectrum)
             self._state_manager.set_session_status(self._session_manager.status())

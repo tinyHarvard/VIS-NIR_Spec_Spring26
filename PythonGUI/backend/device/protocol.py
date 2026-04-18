@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import struct
-import re
 
 import numpy as np
 
@@ -10,38 +9,15 @@ from backend.models.frames import BannerPacket, DevicePacket, FramePacket, TextL
 PACKET_MAGIC = b"CCD1"
 PACKET_VERSION = 1
 PACKET_TYPE_FRAME = 1
-LEGACY_PREVIEW_SAMPLE_COUNT = 4
 MAX_BINARY_SAMPLE_COUNT = 8192
 FRAME_HEADER_STRUCT = struct.Struct("<4sBBHIHHHHI")
 
-STATUS_LINE_RE = re.compile(
-    r"^frame=(?P<frame>\d+)\s+"
-    r"samples=(?P<s0>\d+),(?P<s1>\d+),(?P<s2>\d+),(?P<s3>\d+)\s+"
-    r"half=(?P<half>\d+)\s+full=(?P<full>\d+)$"
-)
-
 
 def parse_device_line(line: str) -> DevicePacket | None:
-    """Purpose: classify one decoded text line. Rationale: legacy preview data and banners share the same CDC text channel."""
+    """Purpose: classify one decoded text line. Rationale: firmware banners and diagnostics share the same CDC text channel."""
     cleaned = line.strip()
     if not cleaned:
         return None
-
-    match = STATUS_LINE_RE.fullmatch(cleaned)
-    if match:
-        return FramePacket(
-            frame_counter=int(match.group("frame")),
-            sample_count=LEGACY_PREVIEW_SAMPLE_COUNT,
-            effective_start=0,
-            effective_count=LEGACY_PREVIEW_SAMPLE_COUNT,
-            flags=0,
-            adc_counts=[
-                int(match.group("s0")),
-                int(match.group("s1")),
-                int(match.group("s2")),
-                int(match.group("s3")),
-            ],
-        )
 
     if (
         cleaned.startswith("USB CDC")

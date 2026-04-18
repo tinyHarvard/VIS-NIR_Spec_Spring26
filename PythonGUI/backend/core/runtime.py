@@ -9,6 +9,7 @@ from backend.core.command_service import CommandService
 from backend.core.session_manager import SessionManager
 from backend.core.state_manager import StateManager
 from backend.device.serial_transport import SerialTransport
+from backend.models.config import ensure_pixel_mode_without_mapping
 from backend.processing.calibration_manager import CalibrationManager
 from backend.processing.spectrum_builder import SpectrumBuilder
 from backend.storage.calibration_store import CalibrationStore
@@ -83,7 +84,7 @@ def build_runtime(paths: RuntimePaths, logger: logging.Logger | None = None) -> 
     )
 
     user_config = config_store.load()
-    calibration_config = calibration_store.load()
+    calibration_config = ensure_pixel_mode_without_mapping(calibration_store.load())
 
     state_manager = StateManager(
         user_config=user_config,

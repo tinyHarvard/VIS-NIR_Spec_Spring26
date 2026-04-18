@@ -1,7 +1,7 @@
 # PythonGUI
 
 `PythonGUI` is the desktop control program for the VIS-NIR spectrometer.
-It is written in Python and runs as a native Kivy window instead of a browser app.
+It is written in Python and runs as a native Kivy desktop window.
 
 This folder contains the complete desktop-side pipeline:
 
@@ -157,14 +157,11 @@ That choice keeps the graph fast and predictable.
 The app still supports calibration data, but the heavier wavelength and intensity calculations are mainly used when exporting data to CSV.
 That design reduces work on the hot path that runs frame after frame at high speed.
 
-## Preview Mode Versus Full Frame Mode
+## Frame Layout Validation
 
-The app can detect two kinds of incoming device behavior:
+The app expects full CCD binary frames from the STM32.
 
-- a true full-frame stream, where the STM32 sends the entire CCD line
-- a legacy preview stream, where the STM32 only sends a tiny sample preview
-
-If only the old preview data arrives, the app tells you directly instead of pretending it has a full 3694-pixel spectrum.
+If the device sends a frame whose sample count does not match the configured layout, the app keeps plotting the received data and logs a frame-size warning instead of pretending the missing samples exist.
 
 ## Configuration Files
 

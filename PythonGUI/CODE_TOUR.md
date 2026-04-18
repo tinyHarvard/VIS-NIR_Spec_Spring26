@@ -276,7 +276,7 @@ Important `StateManager` methods:
 - `add_firmware_message(...)`: stores recent firmware banner text.
 - `append_log(...)`: adds a timestamped message to the rolling log list.
 - `reset_frame_tracking()`: clears frame counters and removes the last spectrum after disconnect or reconnect.
-- `update_from_frame_packet(...)`: copies frame metadata from the newest incoming packet into `DeviceStatus`.
+- `update_from_frame(...)`: copies frame metadata from the newest incoming frame into `DeviceStatus`.
 - `set_last_spectrum(...)`: stores the newest full `SpectrumFrame`.
 - `latest_spectrum()`: returns the newest stored spectrum object.
 - `set_session_status(...)`: updates the current session status object.
@@ -432,8 +432,7 @@ Definitions:
 - `PACKET_VERSION`: current binary protocol version.
 - `PACKET_TYPE_FRAME`: the type code for a frame packet.
 - `FRAME_HEADER_STRUCT`: the binary struct layout used for parsing frame headers.
-- `STATUS_LINE_RE`: regular expression for legacy preview text lines.
-- `parse_device_line(...)`: interprets one decoded text line as a preview frame, banner, or generic text packet.
+- `parse_device_line(...)`: interprets one decoded text line as a firmware banner or generic text packet.
 - `encode_raw_command(...)`: turns a user command string into an ASCII line ending with `\n`.
 - `try_parse_binary_frame(...)`: tries to parse one binary frame packet from a byte buffer and returns both the packet and how many bytes were consumed.
 
@@ -558,7 +557,7 @@ Important `SpectrumBuilder` methods:
 
 - `__init__(...)`: stores dependencies and prepares a wavelength cache.
 - `update_device_config(...)`: updates the ADC/device settings used during export calculations.
-- `build_from_frame_packet(...)`: creates a `SpectrumFrame` from one parsed `FramePacket`.
+- `build_from_frame(...)`: creates a `SpectrumFrame` from one parsed `FramePacket`.
 - `build_export_columns(...)`: computes wavelengths, volts, and processed intensity for export when those fields are not already stored.
 
 Why this file matters:
