@@ -18,6 +18,7 @@ DEFAULT_WAVELENGTH_FIT_ORDER = 3
 DEFAULT_BIAS_CAPTURE_FRAME_COUNT = 8
 DEFAULT_QE_NORMALIZATION_WAVELENGTH_NM = 550.0
 DEFAULT_DISPLAY_NORMALIZATION_MODE = "absolute_saturation"
+DEFAULT_LIVE_GRAPH_MODE = "spectrum"
 
 
 class SerialConfig(BaseModel):
@@ -41,6 +42,15 @@ class UIConfig(BaseModel):
     """Purpose: store UI timing and session buffer settings. Rationale: performance-related choices should be easy to tune."""
     refresh_interval_ms: int = DEFAULT_UI_REFRESH_INTERVAL_MS
     max_session_frames: int = DEFAULT_MAX_SESSION_FRAMES
+    live_graph_mode: Literal["spectrum", "spectrogram"] = DEFAULT_LIVE_GRAPH_MODE
+    show_command_card: bool = True
+    show_diagnostics_card: bool = True
+    show_frame_data_frame: bool = True
+    show_frame_data_layout: bool = True
+    show_frame_data_edge: bool = True
+    show_frame_data_refresh: bool = True
+    show_frame_data_session: bool = True
+    show_frame_data_cursor: bool = True
 
 
 class UserConfig(BaseModel):

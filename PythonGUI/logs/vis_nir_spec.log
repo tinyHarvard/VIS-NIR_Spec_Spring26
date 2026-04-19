@@ -972,3 +972,123 @@ serial.serialutil.SerialException: could not open port 'COM3': PermissionError(1
 2026-04-18 15:21:57,407 INFO kivy: WindowSDL: Window is now on display 0
 2026-04-18 15:22:12,023 INFO kivy: WindowSDL: Window is now on display 1
 2026-04-18 15:22:26,238 INFO kivy: Base: Leaving application in progress...
+2026-04-18 22:27:28,413 INFO kivy: GL: NPOT texture support is available
+2026-04-18 22:27:28,751 INFO kivy: Base: Start application main loop
+2026-04-18 22:28:07,075 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-18 22:28:08,457 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-18 22:28:57,117 INFO kivy: Base: Leaving application in progress...
+2026-04-18 22:30:43,332 INFO kivy: GL: NPOT texture support is available
+2026-04-18 22:30:43,611 INFO kivy: Base: Start application main loop
+2026-04-18 22:35:30,364 INFO kivy: Base: Leaving application in progress...
+2026-04-18 22:35:36,441 INFO kivy: GL: NPOT texture support is available
+2026-04-18 22:35:36,725 INFO kivy: Base: Start application main loop
+2026-04-18 22:35:39,797 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-18 22:35:39,798 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-18 22:40:14,669 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-18 22:40:14,669 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-18 22:48:10,706 INFO kivy: Base: Leaving application in progress...
+2026-04-18 22:48:17,029 INFO kivy: GL: NPOT texture support is available
+2026-04-18 22:48:17,290 INFO kivy: Base: Start application main loop
+2026-04-18 22:49:54,620 INFO kivy: Base: Leaving application in progress...
+2026-04-18 22:52:51,005 INFO kivy: GL: NPOT texture support is available
+2026-04-18 22:52:51,272 INFO kivy: Base: Start application main loop
+2026-04-18 22:55:00,527 INFO kivy: Base: Leaving application in progress...
+2026-04-18 22:58:08,024 INFO kivy: GL: NPOT texture support is available
+2026-04-18 22:58:08,285 INFO kivy: Base: Start application main loop
+2026-04-18 23:04:35,700 INFO kivy: Base: Leaving application in progress...
+2026-04-18 23:04:44,368 INFO kivy: GL: NPOT texture support is available
+2026-04-18 23:04:44,625 INFO kivy: Base: Start application main loop
+2026-04-18 23:08:43,510 INFO kivy: GL: NPOT texture support is available
+2026-04-18 23:08:43,787 INFO kivy: Base: Start application main loop
+2026-04-18 23:08:46,384 ERROR vis_nir_spec: Failed to connect to serial device.
+Traceback (most recent call last):
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\backend\core\command_service.py", line 74, in connect
+    self._transport.connect(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        port=selected_port,
+        ^^^^^^^^^^^^^^^^^^^
+        timeout_s=config.serial.timeout_s,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\backend\device\serial_transport.py", line 41, in connect
+    self._serial = serial.Serial(
+                   ~~~~~~~~~~~~~^
+        port=selected_port,
+        ^^^^^^^^^^^^^^^^^^^
+        baudrate=baudrate,
+        ^^^^^^^^^^^^^^^^^^
+        timeout=timeout_s,
+        ^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\serial\serialwin32.py", line 33, in __init__
+    super(Serial, self).__init__(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\serial\serialutil.py", line 244, in __init__
+    self.open()
+    ~~~~~~~~~^^
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\serial\serialwin32.py", line 64, in open
+    raise SerialException("could not open port {!r}: {!r}".format(self.portstr, ctypes.WinError()))
+serial.serialutil.SerialException: could not open port 'COM3': PermissionError(13, 'Access is denied.', None, 5)
+2026-04-18 23:08:46,806 ERROR vis_nir_spec: Failed to connect to serial device.
+Traceback (most recent call last):
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\backend\core\command_service.py", line 74, in connect
+    self._transport.connect(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        port=selected_port,
+        ^^^^^^^^^^^^^^^^^^^
+        timeout_s=config.serial.timeout_s,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\backend\device\serial_transport.py", line 41, in connect
+    self._serial = serial.Serial(
+                   ~~~~~~~~~~~~~^
+        port=selected_port,
+        ^^^^^^^^^^^^^^^^^^^
+        baudrate=baudrate,
+        ^^^^^^^^^^^^^^^^^^
+        timeout=timeout_s,
+        ^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\serial\serialwin32.py", line 33, in __init__
+    super(Serial, self).__init__(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\serial\serialutil.py", line 244, in __init__
+    self.open()
+    ~~~~~~~~~^^
+  File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\serial\serialwin32.py", line 64, in open
+    raise SerialException("could not open port {!r}: {!r}".format(self.portstr, ctypes.WinError()))
+serial.serialutil.SerialException: could not open port 'COM3': PermissionError(13, 'Access is denied.', None, 5)
+2026-04-18 23:08:50,046 INFO kivy: Base: Leaving application in progress...
+2026-04-18 23:09:13,959 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-18 23:09:13,959 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-18 23:09:27,538 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-18 23:09:27,538 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-18 23:09:27,552 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-18 23:09:33,907 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-18 23:09:36,690 INFO kivy: Base: Leaving application in progress...
+2026-04-18 23:13:24,737 INFO kivy: GL: NPOT texture support is available
+2026-04-18 23:13:25,003 INFO kivy: Base: Start application main loop
+2026-04-18 23:14:11,089 INFO kivy: Base: Leaving application in progress...
+2026-04-18 23:24:48,949 INFO kivy: GL: NPOT texture support is available
+2026-04-18 23:24:49,270 INFO kivy: Base: Start application main loop
+2026-04-18 23:28:36,678 INFO kivy: Base: Leaving application in progress...
+2026-04-18 23:28:41,514 INFO kivy: GL: NPOT texture support is available
+2026-04-18 23:28:41,778 INFO kivy: Base: Start application main loop
+2026-04-18 23:43:21,331 INFO kivy: Base: Leaving application in progress...
+2026-04-18 23:47:21,122 INFO kivy: GL: NPOT texture support is available
+2026-04-18 23:47:21,385 INFO kivy: Base: Start application main loop
+2026-04-18 23:53:56,905 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-18 23:57:03,089 INFO kivy: Base: Leaving application in progress...
+2026-04-19 00:29:21,392 INFO kivy: GL: NPOT texture support is available
+2026-04-19 00:29:21,706 INFO kivy: Base: Start application main loop
+2026-04-19 00:30:00,556 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-19 00:30:34,326 INFO kivy: Base: Leaving application in progress...
+2026-04-19 00:30:44,140 INFO kivy: GL: NPOT texture support is available
+2026-04-19 00:30:44,420 INFO kivy: Base: Start application main loop
+2026-04-19 00:32:22,782 INFO kivy: Clipboard: Provider: winctypes
+2026-04-19 00:33:31,556 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-19 00:33:31,557 INFO kivy: WindowSDL: Window is now on display 0
