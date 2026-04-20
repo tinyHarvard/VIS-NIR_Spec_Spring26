@@ -1,0 +1,134 @@
+2026-04-19 19:51:25,073 INFO kivy: GL: NPOT texture support is available
+2026-04-19 19:51:25,379 INFO kivy: Base: Start application main loop
+2026-04-19 19:51:27,731 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 19:55:24,634 INFO kivy: Base: Leaving application in progress...
+2026-04-19 19:55:27,970 INFO kivy: GL: NPOT texture support is available
+2026-04-19 19:55:28,245 INFO kivy: Base: Start application main loop
+2026-04-19 19:56:31,084 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 20:05:53,551 INFO kivy: Base: Leaving application in progress...
+2026-04-19 20:05:57,542 INFO kivy: GL: NPOT texture support is available
+2026-04-19 20:05:57,818 INFO kivy: Base: Start application main loop
+2026-04-19 20:06:01,525 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 20:10:28,020 INFO kivy: Base: Leaving application in progress...
+2026-04-19 20:10:35,353 INFO kivy: GL: NPOT texture support is available
+2026-04-19 20:10:35,635 INFO kivy: Base: Start application main loop
+2026-04-19 20:10:37,054 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 20:13:57,295 INFO kivy: Base: Leaving application in progress...
+2026-04-19 20:37:17,749 INFO kivy: GL: NPOT texture support is available
+2026-04-19 20:37:18,049 INFO kivy: Base: Start application main loop
+2026-04-19 20:37:34,562 WARNING kivy: stderr: Exception in thread serial-reader:
+2026-04-19 20:37:34,572 WARNING kivy: stderr: Traceback (most recent call last):
+2026-04-19 20:37:34,573 WARNING kivy: stderr:   File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3568.0_x64__qbz5n2kfra8p0\Lib\threading.py", line 1044, in _bootstrap_inner
+2026-04-19 20:37:34,573 WARNING kivy: stderr:     self.run()
+2026-04-19 20:37:34,573 WARNING kivy: stderr:     ~~~~~~~~^^
+2026-04-19 20:37:34,573 WARNING kivy: stderr:   File "C:\Program Files\WindowsApps\PythonSoftwareFoundation.Python.3.13_3.13.3568.0_x64__qbz5n2kfra8p0\Lib\threading.py", line 995, in run
+2026-04-19 20:37:34,574 WARNING kivy: stderr:     self._target(*self._args, **self._kwargs)
+2026-04-19 20:37:34,574 WARNING kivy: stderr:     ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-19 20:37:34,574 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\backend\device\serial_transport.py", line 104, in _reader_loop
+2026-04-19 20:37:34,574 WARNING kivy: stderr:     chunk = serial_handle.read(max(1, serial_handle.in_waiting or 1))
+2026-04-19 20:37:34,574 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\serial\serialwin32.py", line 285, in read
+2026-04-19 20:37:34,574 WARNING kivy: stderr:     ctypes.byref(self._overlapped_read))
+2026-04-19 20:37:34,574 WARNING kivy: stderr:     ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-19 20:37:34,574 WARNING kivy: stderr: TypeError: byref() argument must be a ctypes instance, not 'NoneType'
+2026-04-19 20:41:13,492 INFO kivy: Base: Leaving application in progress...
+2026-04-19 20:41:16,833 INFO kivy: GL: NPOT texture support is available
+2026-04-19 20:41:17,145 INFO kivy: Base: Start application main loop
+2026-04-19 20:48:18,912 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 20:49:56,917 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-19 20:51:19,351 INFO kivy: Base: Leaving application in progress...
+2026-04-19 21:01:17,065 INFO kivy: GL: NPOT texture support is available
+2026-04-19 21:01:17,367 INFO kivy: Base: Start application main loop
+2026-04-19 21:06:06,093 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 21:14:45,926 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-19 21:14:45,926 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 21:14:45,933 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-19 21:19:20,015 INFO kivy: Base: Leaving application in progress...
+2026-04-19 21:19:26,899 INFO kivy: GL: NPOT texture support is available
+2026-04-19 21:19:27,202 INFO kivy: Base: Start application main loop
+2026-04-19 21:21:26,955 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-19 21:21:26,955 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-19 21:22:27,950 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-19 21:22:27,950 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-19 21:22:27,951 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 21:22:57,479 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-19 21:23:28,382 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 21:40:15,315 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-19 21:40:17,616 INFO kivy: Base: Leaving application in progress...
+2026-04-19 21:40:22,057 INFO kivy: GL: NPOT texture support is available
+2026-04-19 21:40:22,351 INFO kivy: Base: Start application main loop
+2026-04-19 21:42:48,254 INFO kivy: WindowSDL: Window is now on display 1
+2026-04-19 21:42:48,254 INFO kivy: WindowSDL: Window is now on display 0
+2026-04-19 21:42:48,274 INFO kivy: WindowSDL: Window is now on display 2
+2026-04-19 21:44:19,810 INFO kivy: Base: Leaving application in progress...
+2026-04-19 21:44:23,873 INFO kivy: GL: NPOT texture support is available
+2026-04-19 21:44:24,166 INFO kivy: Base: Start application main loop
+2026-04-19 21:56:11,958 INFO kivy: Base: Leaving application in progress...
+2026-04-19 21:56:15,773 INFO kivy: GL: NPOT texture support is available
+2026-04-19 21:56:15,878 WARNING kivy: stderr: Traceback (most recent call last):
+2026-04-19 21:56:15,879 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\desktop_app.py", line 49, in <module>
+2026-04-19 21:56:15,879 WARNING kivy: stderr:     main()
+2026-04-19 21:56:15,879 WARNING kivy: stderr:     ~~~~^^
+2026-04-19 21:56:15,880 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\desktop_app.py", line 45, in main
+2026-04-19 21:56:15,880 WARNING kivy: stderr:     run_desktop_app(runtime)
+2026-04-19 21:56:15,880 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~^^^^^^^^^
+2026-04-19 21:56:15,880 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\frontend\kivy_app.py", line 3644, in run_desktop_app
+2026-04-19 21:56:15,880 WARNING kivy: stderr:     DesktopSpectrometerApp(runtime).run()
+2026-04-19 21:56:15,881 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+2026-04-19 21:56:15,881 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\kivy\app.py", line 955, in run
+2026-04-19 21:56:15,881 WARNING kivy: stderr:     self._run_prepare()
+2026-04-19 21:56:15,881 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~~~^^
+2026-04-19 21:56:15,882 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\kivy\app.py", line 925, in _run_prepare
+2026-04-19 21:56:15,882 WARNING kivy: stderr:     root = self.build()
+2026-04-19 21:56:15,882 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\frontend\kivy_app.py", line 1831, in build
+2026-04-19 21:56:15,882 WARNING kivy: stderr:     text=self._spectrogram_time_window_display_text(
+2026-04-19 21:56:15,882 WARNING kivy: stderr:          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2026-04-19 21:56:15,883 WARNING kivy: stderr:         self.runtime.state_manager.get_user_config().ui.spectrogram_time_window_s
+2026-04-19 21:56:15,883 WARNING kivy: stderr:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-19 21:56:15,883 WARNING kivy: stderr:     ),
+2026-04-19 21:56:15,883 WARNING kivy: stderr:     ^
+2026-04-19 21:56:15,883 WARNING kivy: stderr: TypeError: DesktopSpectrometerApp._spectrogram_time_window_display_text() takes 1 positional argument but 2 were given
+2026-04-19 21:56:22,094 INFO kivy: GL: NPOT texture support is available
+2026-04-19 21:56:22,199 WARNING kivy: stderr: Traceback (most recent call last):
+2026-04-19 21:56:22,200 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\desktop_app.py", line 49, in <module>
+2026-04-19 21:56:22,200 WARNING kivy: stderr:     main()
+2026-04-19 21:56:22,200 WARNING kivy: stderr:     ~~~~^^
+2026-04-19 21:56:22,200 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\desktop_app.py", line 45, in main
+2026-04-19 21:56:22,200 WARNING kivy: stderr:     run_desktop_app(runtime)
+2026-04-19 21:56:22,200 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~^^^^^^^^^
+2026-04-19 21:56:22,200 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\frontend\kivy_app.py", line 3644, in run_desktop_app
+2026-04-19 21:56:22,200 WARNING kivy: stderr:     DesktopSpectrometerApp(runtime).run()
+2026-04-19 21:56:22,200 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+2026-04-19 21:56:22,201 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\kivy\app.py", line 955, in run
+2026-04-19 21:56:22,201 WARNING kivy: stderr:     self._run_prepare()
+2026-04-19 21:56:22,201 WARNING kivy: stderr:     ~~~~~~~~~~~~~~~~~^^
+2026-04-19 21:56:22,201 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\.venv\Lib\site-packages\kivy\app.py", line 925, in _run_prepare
+2026-04-19 21:56:22,201 WARNING kivy: stderr:     root = self.build()
+2026-04-19 21:56:22,201 WARNING kivy: stderr:   File "C:\Users\ralel\OneDrive\GitHub\VIS-NIR_Spec_Spring26\PythonGUI\frontend\kivy_app.py", line 1831, in build
+2026-04-19 21:56:22,201 WARNING kivy: stderr:     text=self._spectrogram_time_window_display_text(
+2026-04-19 21:56:22,201 WARNING kivy: stderr:          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+2026-04-19 21:56:22,201 WARNING kivy: stderr:         self.runtime.state_manager.get_user_config().ui.spectrogram_time_window_s
+2026-04-19 21:56:22,201 WARNING kivy: stderr:         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-04-19 21:56:22,201 WARNING kivy: stderr:     ),
+2026-04-19 21:56:22,202 WARNING kivy: stderr:     ^
+2026-04-19 21:56:22,202 WARNING kivy: stderr: TypeError: DesktopSpectrometerApp._spectrogram_time_window_display_text() takes 1 positional argument but 2 were given
+2026-04-19 21:57:38,090 INFO kivy: GL: NPOT texture support is available
+2026-04-19 21:57:38,397 INFO kivy: Base: Start application main loop
+2026-04-19 22:01:09,770 INFO kivy: Base: Leaving application in progress...
+2026-04-19 22:01:13,528 INFO kivy: GL: NPOT texture support is available
+2026-04-19 22:01:13,831 INFO kivy: Base: Start application main loop
+2026-04-19 22:11:23,314 INFO kivy: Base: Leaving application in progress...
+2026-04-19 22:15:20,439 INFO kivy: GL: NPOT texture support is available
+2026-04-19 22:15:20,749 INFO kivy: Base: Start application main loop
+2026-04-19 22:17:35,636 INFO kivy: Base: Leaving application in progress...
+2026-04-19 22:17:39,384 INFO kivy: GL: NPOT texture support is available
+2026-04-19 22:17:39,684 INFO kivy: Base: Start application main loop
+2026-04-19 22:18:04,750 INFO kivy: Clipboard: Provider: winctypes
+2026-04-19 22:20:24,097 INFO kivy: Base: Leaving application in progress...
+2026-04-19 22:20:36,192 INFO kivy: GL: NPOT texture support is available
+2026-04-19 22:20:36,497 INFO kivy: Base: Start application main loop
+2026-04-19 22:27:45,876 INFO kivy: Base: Leaving application in progress...
+2026-04-19 22:27:50,605 INFO kivy: GL: NPOT texture support is available
+2026-04-19 22:27:50,899 INFO kivy: Base: Start application main loop
+2026-04-19 22:47:45,774 INFO kivy: Base: Leaving application in progress...
+2026-04-20 13:13:42,886 INFO kivy: GL: NPOT texture support is available
+2026-04-20 13:13:43,870 INFO kivy: Base: Start application main loop

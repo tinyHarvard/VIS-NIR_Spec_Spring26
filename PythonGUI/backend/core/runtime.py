@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from backend.core.command_service import CommandService
-from backend.core.session_manager import SessionManager
+from backend.core.performance_monitor import PerformanceMonitor
+from backend.core.session_manager import DEFAULT_MAX_SPECTROGRAM_HISTORY_FRAMES, SessionManager
 from backend.core.state_manager import StateManager
 from backend.device.serial_transport import SerialTransport
 from backend.models.config import ensure_pixel_mode_without_mapping
@@ -39,6 +40,7 @@ class AppRuntime:
     spectrum_builder: SpectrumBuilder
     transport: SerialTransport
     command_service: CommandService
+    performance_monitor: PerformanceMonitor
 
 
 def resolve_runtime_paths(app_root: Path) -> RuntimePaths:
@@ -90,12 +92,19 @@ def build_runtime(paths: RuntimePaths, logger: logging.Logger | None = None) -> 
         user_config=user_config,
         calibration_config=calibration_config,
     )
+    performance_monitor = PerformanceMonitor()
     calibration_manager = CalibrationManager(calibration_config)
-    spectrum_builder = SpectrumBuilder(calibration_manager, user_config.device)
+    spectrum_builder = SpectrumBuilder(
+        calibration_manager,
+        user_config.device,
+        performance_monitor=performance_monitor,
+    )
     session_manager = SessionManager(
         export_dir=paths.project_root / "exports",
         max_frames=user_config.ui.max_session_frames,
+        max_spectrogram_frames=DEFAULT_MAX_SPECTROGRAM_HISTORY_FRAMES,
         spectrum_builder=spectrum_builder,
+        performance_monitor=performance_monitor,
     )
     transport = SerialTransport()
     command_service = CommandService(
@@ -104,6 +113,7 @@ def build_runtime(paths: RuntimePaths, logger: logging.Logger | None = None) -> 
         transport=transport,
         calibration_manager=calibration_manager,
         spectrum_builder=spectrum_builder,
+        performance_monitor=performance_monitor,
         logger=resolved_logger,
     )
     state_manager.set_session_status(session_manager.status())
@@ -119,4 +129,5 @@ def build_runtime(paths: RuntimePaths, logger: logging.Logger | None = None) -> 
         spectrum_builder=spectrum_builder,
         transport=transport,
         command_service=command_service,
+        performance_monitor=performance_monitor,
     )
