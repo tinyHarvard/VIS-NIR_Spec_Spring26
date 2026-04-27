@@ -1,0 +1,306 @@
+STM32CubeMX Setup Walkthrough
+==============================
+
+Target: STM32F411CEU6 (UFQFPN48)
+Tool:   STM32CubeMX 6.17.0
+Goal:   Bring STM32F411_Basic.ioc in line with readme.txt and the existing
+        hand-written firmware in main.c, then regenerate cleanly.
+
+See timeroutline.md for the full state audit, gap analysis, and timer math.
+This file is the click-by-click walkthrough.
+
+
+Decisions Locked In
+-------------------
+
+Pin map (per readme.txt):
+  PA0  - ADC1_IN0  (CCD analog OS)
+  PA5  - TIM2_CH1  (ADC trigger, 500 kHz)
+  PA6  - TIM3_CH1  (SH)
+  PA8  - TIM1_CH1  (phi/M, 2 MHz)
+  PB6  - TIM4_CH1  (ICG)
+
+74HC04 inverter is in line on phi/M, ICG, and SH (per research paper Fig 3b
+and the hex-inverter datasheet). Polarity implications:
+  - TIM1 CH1 (phi/M): symmetric 50% duty 2 MHz - polarity does not matter,
+                      leave default (High).
+  - TIM4 CH1 (ICG):   polarity = Low. MCU LOW phase = CCD HIGH (readout
+                      window), MCU HIGH phase = CCD LOW (clear pulse).
+  - TIM3 CH1 (SH):    polarity = Low. MCU LOW pulse = CCD HIGH shift pulse.
+
+SH operating mode for first bring-up:
+  One SH pulse per 8 ms ICG frame. TIM3 ARR=7999, Pulse=4, polarity=Low.
+  Pulse fires at start of TIM4 frame (TIM3 reset is slaved to TIM4 TRGO).
+  Electronic-shutter mode added later once the basics are scoped.
+
+DMA mode: Normal (matches HAL_ADC_Start_DMA(..., 3694) call pattern in main.c).
+
+TIM5: dropped. It is dead code in main.c (Period=191, no channel, never
+started or referenced after init).
+
+
+Timing caveat to be aware of
+----------------------------
+
+Placing the SH pulse at TIM3 tick 0..3 means the CCD-side SH rising edge
+coincides with the CCD-side ICG rising edge (both occur at the TIM4 wrap
+event). The TCD1304DG datasheet specifies t2 = 100 ns to 1 us between
+SH rising and ICG falling. Our config does not strictly meet that. We will
+verify on the scope; if it matters, the fix is moving TIM3 to One-Pulse
+Mode (OPM) with a small delay.
+
+
+==============================================================================
+Phase 0 - Pre-flight (do this FIRST)
+==============================================================================
+
+1. Commit everything currently on disk to git:
+
+       git add CCD-Driver-Code/STM32F411_Basic/
+       git commit -m "snapshot before CubeMX regeneration"
+
+   The instant you click "Generate Code", every line outside USER CODE
+   BEGIN/END blocks gets rewritten. The hand-written MX_TIM4_Init,
+   MX_TIM5_Init, MX_DMA_Init, and the ADC trigger settings inside
+   MX_ADC1_Init are outside those blocks today and WILL be deleted.
+   The git commit is your recovery path.
+
+2. Open STM32F411_Basic.ioc in CubeMX 6.17.0. It will prompt to migrate
+   from 6.15.0 to 6.17.0. Accept. Save (Ctrl+S) under the same filename
+   so paths do not shift.
+
+3. Project Manager -> Code Generator: verify "Keep User Code when
+   re-generating" is checked. (It already is in the .ioc, but confirm
+   after migration.)
+
+
+==============================================================================
+Phase 1 - Pinout cleanup
+==============================================================================
+
+In the Pinout & Configuration view:
+
+1. PB12 -> right-click -> "Reset_State". Drops the stale SH GPIO label.
+2. PB13 -> right-click -> "Reset_State". Drops the stale ICG GPIO label.
+3. PB6  -> left-click  -> select TIM4_CH1. Pin turns green.
+4. PB6  -> right-click -> "Enter User Label" -> type ICG.
+5. PA6  -> right-click -> "Enter User Label" -> type SH.
+   (PA6 is already TIM3_CH1 in the .ioc; only the label is missing.)
+
+
+==============================================================================
+Phase 2 - Timers
+==============================================================================
+
+------------------------------------------------------------------------------
+TIM1 (phi/M, 2 MHz on PA8)
+------------------------------------------------------------------------------
+
+No changes. Already correct: PSC=0, ARR=47, CCR1=24, PWM1, polarity High.
+
+------------------------------------------------------------------------------
+TIM2 (ADC trigger, 500 kHz on PA5)
+------------------------------------------------------------------------------
+
+Click TIM2 in the left panel.
+
+Parameter Settings:
+  Prescaler:               0
+  Counter Period (ARR):    191       (was 709247 - this is the main fix)
+  Auto-reload preload:     Disable
+
+PWM Generation Channel 1:
+  Pulse:                   96
+  Output compare preload:  Enable
+  Polarity:                High
+
+Trigger Output (TRGO) Parameters:   (section is below PWM in 6.17.0)
+  Master/Slave Mode (MSM):           Enable
+  Trigger Event Selection:           Update Event
+
+------------------------------------------------------------------------------
+TIM4 (ICG, 125 Hz on PB6) - NEW
+------------------------------------------------------------------------------
+
+Click TIM4 in the left panel.
+
+Mode panel:
+  Clock Source:            Internal Clock
+  Channel 1:               PWM Generation CH1
+
+Parameter Settings:
+  Prescaler:               95
+  Counter Mode:            Up
+  Counter Period (ARR):    7999
+  Auto-reload preload:     Disable
+
+PWM Generation Channel 1:
+  Mode:                    PWM mode 1
+  Pulse:                   7388
+  Output compare preload:  Enable
+  Fast Mode:               Disable
+  CH Polarity:             Low
+
+Trigger Output (TRGO) Parameters:
+  Master/Slave Mode:                 Enable
+  Trigger Event Selection:           Update Event
+
+NVIC Settings tab:
+  TIM4 global interrupt:             checked
+
+------------------------------------------------------------------------------
+TIM3 (SH on PA6)
+------------------------------------------------------------------------------
+
+Click TIM3 in the left panel.
+
+Parameter Settings:
+  Prescaler:               95
+  Counter Period (ARR):    7999
+  Auto-reload preload:     Enable
+
+PWM Generation Channel 1:
+  Mode:                    PWM mode 1
+  Pulse:                   4
+  Output compare preload:  Enable
+  CH Polarity:             Low                (because of the 74HC04)
+
+Slave Mode:                            (scroll down - sync step)
+  Slave Mode:                          Reset Mode
+  Trigger Source:                      ITR3
+    (ITR3 maps to TIM4's TRGO on STM32F4. If the dropdown labels
+     differently in 6.17.0, look for the option that says TIM4
+     in parentheses next to ITRn.)
+
+
+==============================================================================
+Phase 3 - ADC1 and DMA
+==============================================================================
+
+Click ADC1 in the left panel.
+
+Parameter Settings:
+  Clock Prescaler:                          PCLK2 / 4
+  Resolution:                               12-bit
+  Continuous Conversion Mode:               Disable
+  DMA Continuous Requests:                  Enable
+  End Of Conversion Selection:              EOC flag at end of single
+                                            channel conversion
+  External Trigger Conversion Source:       Timer 2 Trigger Out event
+  External Trigger Conversion Edge:         Trigger detection on rising edge
+
+ADC_Regular_ConversionMode:
+  Number Of Conversion:    1
+  Rank 1:                  Channel 0
+  Sampling Time:           15 Cycles    (current .ioc has 3 - bump it
+                                         to give the analog frontend
+                                         time to settle)
+
+DMA Settings tab (still inside ADC1):
+  Click Add.
+  DMA Request:             ADC1
+  Stream:                  DMA2 Stream 0
+  Direction:               Peripheral To Memory
+  Mode:                    Normal       (matches main.c's start/stop-per-
+                                         frame pattern)
+  Increment Address:       Memory only  (peripheral unchecked, memory
+                                         checked)
+  Data Width:              Peripheral = Half Word, Memory = Half Word
+
+NVIC Settings tab (still inside ADC1):
+  Confirm DMA2 stream0 global interrupt is enabled. (It should auto-
+  enable when the DMA request is added.)
+
+
+==============================================================================
+Phase 4 - Verify NVIC priorities
+==============================================================================
+
+Open the System Core -> NVIC view and confirm:
+
+  TIM4 global interrupt:               enabled, priority 0
+    (matches what main.c currently sets manually - TIM4 update IRQ
+     drives the frame state machine, so it must preempt USB)
+
+  DMA2 stream0 global interrupt:       enabled, priority 0 or 1
+
+  USB OTG FS global interrupt:         enabled, priority 1 or higher
+                                       (lower priority than TIM4)
+
+  SysTick:                             priority 15 (already)
+
+
+==============================================================================
+Phase 5 - Generate code
+==============================================================================
+
+1. Project Manager -> Code Generator:
+   - "Copy only the necessary library files"           keep default
+   - "Generate peripheral initialization as a pair of  leave at current
+      .c/.h files per peripheral"                       setting
+   - "Keep User Code when re-generating"               CHECKED
+     (verify again, this is the most important box on this page)
+
+2. Ctrl+S to save.
+
+3. Click Generate Code.
+
+
+==============================================================================
+Phase 6 - Post-generate cleanup (in the IDE, not CubeMX)
+==============================================================================
+
+After CubeMX writes the files:
+
+1. Core/Inc/main.h:
+   The macros SH_Pin, SH_GPIO_Port, ICG_Pin, ICG_GPIO_Port should now be
+   GONE (since PB12/PB13 were reset). If main.c still references them
+   anywhere outside USER CODE blocks, those lines need deleting.
+
+2. Core/Src/main.c: diff against the pre-regen git commit. Confirm:
+   - All /* USER CODE BEGIN */ ... /* USER CODE END */ blocks are intact
+     (frame state machine, USB CDC transmit, ISR callbacks).
+   - MX_TIM4_Init, MX_DMA_Init, and MX_ADC1_Init are CubeMX-generated now
+     (no longer hand-written).
+   - MX_TIM5_Init should be GONE. If anything in USER CODE still calls
+     it, remove the call.
+   - htim5 declaration should be gone. Same for any
+     extern TIM_HandleTypeDef htim5; in headers.
+
+3. Build the project. Fix any unresolved references that fall out
+   (mostly the PB12/PB13 ones).
+
+
+==============================================================================
+Phase 7 - Bench bring-up checklist
+==============================================================================
+
+Before connecting the CCD, scope:
+
+  PA8 (phi/M)             continuous 2.000 MHz, 50% duty
+  PB6 (ICG, MCU side)     125 Hz, LOW for 7.388 ms, HIGH for 0.612 ms
+  PB6 after inverter      HIGH 7.388 ms, LOW 0.612 ms
+  PA6 (SH, MCU side)      125 Hz, LOW for 4 us at start of each ICG
+                          frame, HIGH for the remaining 7.996 ms
+  PA6 after inverter      HIGH for 4 us at start of each frame, LOW
+                          otherwise
+  PA5 (TIM2/ADC trig)     500 kHz square wave whenever the firmware
+                          has armed a capture
+
+Frame cadence: ccd_icg_start_count increments at 125 Hz when running.
+
+
+==============================================================================
+Open Items / Future Work
+==============================================================================
+
+- t2 timing margin (100 ns - 1 us between SH rising and ICG falling at
+  CCD): not strictly met by current PWM-with-shared-trigger config.
+  Verify on scope. If readout is unreliable, switch TIM3 to One-Pulse
+  Mode with a programmable delay.
+
+- Electronic-shutter mode (multiple SH pulses per ICG frame, integration
+  time = SH period): deferred until normal mode is verified.
+
+- Once both modes are working and pin map is verified, archive
+  timeroutline.md and update readme.txt to reflect the as-built config.
