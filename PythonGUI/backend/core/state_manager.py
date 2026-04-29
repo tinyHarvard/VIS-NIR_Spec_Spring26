@@ -110,22 +110,22 @@ class StateManager:
             self._device_status.sample_preview = []
             self._last_spectrum = None
 
-    def update_from_frame_packet(self, packet: FramePacket, *, missed_frames: int = 0) -> None:
-        """Purpose: copy new frame metadata into live status. Rationale: the UI should read packet summaries without parsing frames itself."""
+    def update_from_frame(self, frame: FramePacket, *, missed_frames: int = 0) -> None:
+        """Purpose: copy new frame metadata into live status. Rationale: the UI should read frame summaries without parsing frames itself."""
         with self._lock:
-            self._device_status.last_seen = packet.timestamp
-            self._device_status.frame_counter = packet.frame_counter
-            self._device_status.sample_count = packet.sample_count
-            self._device_status.effective_start_index = packet.effective_start
-            self._device_status.effective_sample_count = packet.effective_count
-            self._device_status.last_frame_flags = packet.flags
+            self._device_status.last_seen = frame.timestamp
+            self._device_status.frame_counter = frame.frame_counter
+            self._device_status.sample_count = frame.sample_count
+            self._device_status.effective_start_index = frame.effective_start
+            self._device_status.effective_sample_count = frame.effective_count
+            self._device_status.last_frame_flags = frame.flags
             self._device_status.missed_frames += missed_frames
             self._device_status.sample_preview = (
-                list(packet.adc_counts[:4]) + list(packet.adc_counts[-4:])
-                if len(packet.adc_counts) >= 8
-                else list(packet.adc_counts)
+                list(frame.adc_counts[:4]) + list(frame.adc_counts[-4:])
+                if len(frame.adc_counts) >= 8
+                else list(frame.adc_counts)
             )
-            self._device_status.last_message = f"Frame {packet.frame_counter} received."
+            self._device_status.last_message = f"Frame {frame.frame_counter} received."
 
     def set_last_spectrum(self, frame: SpectrumFrame) -> None:
         """Purpose: store the newest spectrum frame. Rationale: the plot should always have a single latest frame to display."""

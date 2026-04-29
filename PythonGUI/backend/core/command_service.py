@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 import logging
 import queue
 import threading
+from time import perf_counter
 
+from backend.core.performance_monitor import PerformanceMonitor
 from backend.core.session_manager import SessionManager
 from backend.core.state_manager import StateManager
 from backend.device.base_transport import BaseTransport
 from backend.device.packet_reader import DeviceStreamReader
 from backend.device.protocol import encode_raw_command
-from backend.models.config import CalibrationConfig, UserConfig
+from backend.models.config import CalibrationConfig, UserConfig, ensure_pixel_mode_without_mapping
 from backend.models.frames import BannerPacket, FramePacket, TextLinePacket
 from backend.models.status import CommandResult, ConnectionState
 from backend.processing.calibration_manager import CalibrationManager
@@ -26,6 +29,7 @@ class CommandService:
         transport: BaseTransport,
         calibration_manager: CalibrationManager,
         spectrum_builder: SpectrumBuilder,
+        performance_monitor: PerformanceMonitor | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         """Purpose: wire the command layer to its dependencies. Rationale: incoming device data and UI actions share one coordinator."""
@@ -36,9 +40,12 @@ class CommandService:
         self._spectrum_builder = spectrum_builder
         self._packet_reader = DeviceStreamReader()
         self._last_frame_id: int | None = None
-        self._legacy_preview_notice_emitted = False
+        self._last_frame_arrival_s: float | None = None
+        self._last_chunk_arrival_s: float | None = None
+        self._frame_size_warning_emitted = False
         self._expected_sample_count = state_manager.get_user_config().device.sample_count
-        self._incoming_bytes: queue.Queue[bytes | None] = queue.Queue()
+        self._incoming_bytes: queue.Queue[tuple[bytes, float] | None] = queue.Queue()
+        self._performance_monitor = performance_monitor
         self._logger = logger or logging.getLogger(__name__)
         self._processor_thread = threading.Thread(
             target=self._processing_loop,
@@ -62,7 +69,9 @@ class CommandService:
         self._packet_reader.reset()
         self._clear_pending_bytes()
         self._last_frame_id = None
-        self._legacy_preview_notice_emitted = False
+        self._last_frame_arrival_s = None
+        self._last_chunk_arrival_s = None
+        self._frame_size_warning_emitted = False
 
         if not selected_port:
             ports = self.list_serial_ports()
@@ -103,7 +112,9 @@ class CommandService:
         self._packet_reader.reset()
         self._clear_pending_bytes()
         self._last_frame_id = None
-        self._legacy_preview_notice_emitted = False
+        self._last_frame_arrival_s = None
+        self._last_chunk_arrival_s = None
+        self._frame_size_warning_emitted = False
         self._state_manager.reset_frame_tracking()
         self._state_manager.set_connection_state(
             ConnectionState.disconnected,
@@ -126,8 +137,8 @@ class CommandService:
         return CommandResult(
             ok=True,
             message=(
-                "Command sent over USB CDC. The current STM32 firmware does not yet "
-                "parse incoming CDC commands, so this is future-ready plumbing."
+                "Command sent over USB CDC. Device-side command handling depends on "
+                "the active STM32 firmware."
             ),
         )
 
@@ -137,13 +148,15 @@ class CommandService:
         self._spectrum_builder.update_device_config(config.device)
         self._session_manager.set_max_frames(config.ui.max_session_frames)
         self._expected_sample_count = config.device.sample_count
+        self._frame_size_warning_emitted = False
         self._state_manager.set_session_status(self._session_manager.status())
         self._state_manager.append_log("User configuration updated.")
 
     def apply_calibration_config(self, config: CalibrationConfig) -> None:
         """Purpose: apply new calibration settings. Rationale: calibration changes should flow through one controlled update point."""
-        self._calibration_manager.update_config(config)
-        self._state_manager.set_calibration_config(config)
+        normalized_config = ensure_pixel_mode_without_mapping(config)
+        self._calibration_manager.update_config(normalized_config)
+        self._state_manager.set_calibration_config(normalized_config)
         latest_spectrum = self._state_manager.latest_spectrum()
         if latest_spectrum is not None:
             self._state_manager.set_last_spectrum(
@@ -169,6 +182,8 @@ class CommandService:
 
         if state == ConnectionState.disconnected:
             self._last_frame_id = None
+            self._last_frame_arrival_s = None
+            self._last_chunk_arrival_s = None
 
         self._state_manager.set_connection_state(state, message=detail)
         if detail:
@@ -177,15 +192,46 @@ class CommandService:
     def _handle_bytes(self, data: bytes) -> None:
         """Purpose: enqueue raw device bytes. Rationale: the serial reader thread should stay light and avoid heavy parsing work."""
         if data:
-            self._incoming_bytes.put_nowait(bytes(data))
+            payload = bytes(data)
+            chunk_arrival_s = perf_counter()
+            self._incoming_bytes.put_nowait((payload, chunk_arrival_s))
+            monitor = self._performance_monitor
+            if monitor is not None:
+                if self._last_chunk_arrival_s is not None:
+                    monitor.record_value(
+                        "transport.read_chunk_interval_ms",
+                        (chunk_arrival_s - self._last_chunk_arrival_s) * 1000.0,
+                    )
+                monitor.increment("transport.bytes_in", len(payload))
+                monitor.increment("transport.read_chunks")
+                monitor.record_value("transport.read_chunk_bytes", len(payload))
+                monitor.record_value("backend.bytes_queue_depth", self._incoming_bytes.qsize())
+            self._last_chunk_arrival_s = chunk_arrival_s
 
     def _processing_loop(self) -> None:
         """Purpose: turn queued bytes into packets on a worker thread. Rationale: parsing and frame handling should not block serial reads."""
         while True:
-            data = self._incoming_bytes.get()
-            if data is None:
+            pending = self._incoming_bytes.get()
+            if pending is None:
                 return
-            for packet in self._packet_reader.feed(data):
+            data, enqueued_at_s = pending
+            monitor = self._performance_monitor
+            if monitor is not None:
+                monitor.record_value("backend.bytes_queue_wait_ms", (perf_counter() - enqueued_at_s) * 1000.0)
+                monitor.record_value("backend.bytes_queue_depth", self._incoming_bytes.qsize())
+                monitor.record_value("backend.packet_parse_input_bytes", len(data))
+            with (
+                monitor.measure("backend.packet_parse")
+                if monitor is not None
+                else nullcontext()
+            ):
+                packets = self._packet_reader.feed(data)
+            if monitor is not None:
+                monitor.record_value("backend.packets_per_chunk", len(packets))
+                frame_packets = sum(1 for packet in packets if isinstance(packet, FramePacket))
+                if frame_packets > 0:
+                    monitor.record_value("backend.frames_per_chunk", frame_packets)
+            for packet in packets:
                 self._process_packet(packet)
 
     def _process_packet(self, packet: BannerPacket | TextLinePacket | FramePacket) -> None:
@@ -200,30 +246,51 @@ class CommandService:
             return
 
         if isinstance(packet, FramePacket):
-            if (
-                packet.sample_count < self._expected_sample_count
-                and not self._legacy_preview_notice_emitted
+            monitor = self._performance_monitor
+            with (
+                monitor.measure("backend.frame_process")
+                if monitor is not None
+                else nullcontext()
             ):
-                self._legacy_preview_notice_emitted = True
-                self._state_manager.append_log(
-                    "Detected a legacy preview stream from the STM32: "
-                    f"received {packet.sample_count} samples, expected {self._expected_sample_count}. "
-                    "Flash the updated full-frame firmware to view the full CCD line."
-                )
+                arrival_time_s = perf_counter()
+                if monitor is not None:
+                    monitor.increment("backend.frames_processed")
+                    if self._last_frame_arrival_s is not None:
+                        monitor.record_value(
+                            "backend.frame_interval_ms",
+                            (arrival_time_s - self._last_frame_arrival_s) * 1000.0,
+                        )
+                self._last_frame_arrival_s = arrival_time_s
+                if (
+                    packet.sample_count != self._expected_sample_count
+                    and not self._frame_size_warning_emitted
+                ):
+                    self._frame_size_warning_emitted = True
+                    self._state_manager.append_log(
+                        "Received a frame-size mismatch from the device: "
+                        f"got {packet.sample_count} samples, expected {self._expected_sample_count}. "
+                        "Check the active firmware and device layout settings."
+                    )
 
-            missed_frames = 0
-            if self._last_frame_id is not None and packet.frame_counter > self._last_frame_id + 1:
-                missed_frames = packet.frame_counter - self._last_frame_id - 1
-                self._state_manager.append_log(
-                    f"Missed {missed_frames} frame(s) before frame {packet.frame_counter}."
-                )
+                missed_frames = 0
+                if self._last_frame_id is not None and packet.frame_counter > self._last_frame_id + 1:
+                    missed_frames = packet.frame_counter - self._last_frame_id - 1
+                    if monitor is not None:
+                        monitor.increment("backend.frames_missed", missed_frames)
+                    self._state_manager.append_log(
+                        f"Missed {missed_frames} frame(s) before frame {packet.frame_counter}."
+                    )
 
-            self._last_frame_id = packet.frame_counter
-            self._state_manager.update_from_frame_packet(packet, missed_frames=missed_frames)
-            spectrum = self._spectrum_builder.build_from_frame_packet(packet)
-            self._state_manager.set_last_spectrum(spectrum)
-            self._session_manager.append_frame(spectrum)
-            self._state_manager.set_session_status(self._session_manager.status())
+                self._last_frame_id = packet.frame_counter
+                self._state_manager.update_from_frame(packet, missed_frames=missed_frames)
+                spectrum = self._spectrum_builder.build_from_frame(packet)
+                self._state_manager.set_last_spectrum(spectrum)
+                self._session_manager.append_frame(spectrum)
+                session_status = self._session_manager.status()
+                self._state_manager.set_session_status(session_status)
+                if monitor is not None:
+                    monitor.record_value("backend.session_frames_buffered", session_status.frames_buffered)
+                    monitor.record_value("backend.session_dropped_frames", session_status.dropped_frames)
 
     def _clear_pending_bytes(self) -> None:
         """Purpose: empty the queued raw-byte backlog. Rationale: reconnects should not process stale bytes from an old session."""

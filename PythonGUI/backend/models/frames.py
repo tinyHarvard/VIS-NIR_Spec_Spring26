@@ -52,8 +52,16 @@ class SpectrumFrame(BaseModel):
     sample_indices: list[int] = Field(default_factory=list)
     adc_counts: list[int] = Field(default_factory=list)
     live_display_counts: list[float] = Field(default_factory=list)
+    spectrogram_row: list[float] = Field(default_factory=list)
     dark_reference_count: float | None = None
     volts: list[float] = Field(default_factory=list)
     wavelengths_nm: list[float] = Field(default_factory=list)
     processed_intensity: list[float] = Field(default_factory=list)
     notes: str | None = None
+
+
+class SpectrogramHistoryFrame(BaseModel):
+    """Purpose: represent one compact spectrogram-history row. Rationale: the rolling heatmap needs longer time coverage than the full export buffer can hold affordably."""
+    frame_id: int
+    timestamp: datetime = Field(default_factory=utc_now)
+    spectrogram_row: list[float] = Field(default_factory=list)

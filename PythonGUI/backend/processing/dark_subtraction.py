@@ -43,7 +43,6 @@ def apply_dark_subtraction(
     sample_indices: Sequence[int] | None = None,
 ) -> np.ndarray:
     """Purpose: subtract dark offsets from signal values. Rationale: sensor bias removal should be reusable and data-driven."""
-    """Purpose: subtract dark offsets from signal values. Rationale: sensor bias removal should be reusable and data-driven."""
     data = np.asarray(values, dtype=float)
     if not dark_offsets:
         return data
