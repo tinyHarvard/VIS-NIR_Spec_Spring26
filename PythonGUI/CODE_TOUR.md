@@ -3,66 +3,71 @@
 This document explains the current `PythonGUI` project file by file.
 It is written for someone who may be new to both this codebase and Python itself.
 
+Last aligned with the source tree on 2026-04-29.
+
 The goal is not just to say what each file contains.
 The goal is to explain why each file exists, what each class or function does, and what role it plays in the full spectrometer app.
 
 ## Scope Of This Tour
 
-This tour covers the current source and project files inside `PythonGUI`.
-It focuses on code and project structure, not generated folders such as `.venv`, `build`, `dist`, or `__pycache__`.
+This tour covers source and project files inside `PythonGUI`.
+It does not cover generated folders such as `.venv`, `build`, `dist`, or `__pycache__`.
+
+The current app is a Kivy desktop program that:
+
+- opens a serial USB CDC connection to the STM32 firmware
+- parses mixed firmware text lines and binary `CCD1` frame packets
+- turns raw CCD frames into app-level spectrum frames
+- applies the current calibration pipeline for live display and export
+- keeps rolling buffers for full session export and compact spectrogram history
+- renders a line spectrum or rolling spectrogram
+- provides calibration, display/layout, diagnostics, and performance tools
 
 ## Top-Level Project Files
 
 ### `pyproject.toml`
 
 Purpose:
-This is the project definition file for Python packaging and dependency installation.
+Defines the Python package, Python version, dependencies, and optional build dependencies.
 
-Rationale:
-Instead of manually installing packages one by one, this file gives Python tools one central place to read the app name, Python version, and required libraries.
+Important sections:
 
-Sections:
+- `[build-system]`: tells Python tooling to build with setuptools.
+- `[project]`: stores the app name, version, README, Python version, and runtime dependencies.
+- `[project.optional-dependencies]`: adds `pyinstaller` for standalone executable builds.
+- `[tool.setuptools.packages.find]`: makes `backend*` and `frontend*` installable packages.
 
-- `[build-system]`: tells Python how this package should be built.
-- `[project]`: stores the package name, version, summary, README, Python version requirement, and runtime dependencies.
-- `[project.optional-dependencies]`: defines extra packages that are only needed for special tasks such as building a standalone executable.
-- `[tool.setuptools.packages.find]`: tells setuptools which folders should be treated as Python packages.
+Runtime dependencies are Kivy, NumPy, Pydantic, and pyserial.
 
 ### `desktop_app.py`
 
 Purpose:
-This is the real entry point for the desktop application.
-
-Rationale:
-Keeping the entry point small makes startup easier to understand.
-This file prepares Kivy, builds the shared runtime, hides the extra console window on Windows, and launches the UI.
+This is the entry point for the desktop application.
 
 Definitions:
 
-- `hide_console_window()`: hides the Windows console window after startup so the user only sees the desktop app.
-- `main()`: builds runtime paths, sets up logging, constructs all app services, hides the console, and launches the Kivy app.
+- `hide_console_window()`: hides the extra Windows console after startup when possible.
+- `main()`: resolves paths, configures logging, builds the runtime, hides the console, and launches Kivy.
+
+Why this file matters:
+It stays small so startup is easy to follow.
+Most real application wiring happens in `backend/core/runtime.py`.
 
 ### `run_app.bat`
 
 Purpose:
-This is the simplest launcher for Windows users.
-
-Rationale:
-It saves the user from having to remember the Python command.
+Launches the desktop app on Windows.
 
 Behavior:
 
 - switches into the `PythonGUI` folder
 - checks that `.venv` exists
-- runs `desktop_app.py` with the virtual environment's Python interpreter
+- runs `desktop_app.py` with `.venv\Scripts\python.exe`
 
 ### `install_dependencies.bat`
 
 Purpose:
-This installs the Python environment for the project.
-
-Rationale:
-The batch file makes setup easier for users who are not comfortable running `pip` commands manually.
+Creates and updates the local Python environment.
 
 Behavior:
 
@@ -74,553 +79,493 @@ Behavior:
 ### `vis_nir_spec.spec`
 
 Purpose:
-This is the PyInstaller recipe for turning the Python app into a standalone Windows executable.
-
-Rationale:
-A spec file gives fine control over which files and hidden imports must be bundled.
+PyInstaller recipe for making a standalone Windows app bundle.
 
 Important pieces:
 
-- `datas`: bundles default JSON config files into the packaged app.
-- `binaries`: collects binary dependencies from packages.
-- `hiddenimports`: collects imports PyInstaller might miss automatically.
-- `collect_all(...)` loops: gather Kivy, NumPy, and serial package data.
-- `Analysis(...)`: tells PyInstaller what script is the entry point and what assets to include.
-- `PYZ(...)`: builds the compressed Python archive.
-- `EXE(...)`: defines the executable itself.
-- `COLLECT(...)`: gathers the final bundle contents into the output folder.
+- `datas`: bundles the default config files.
+- `binaries`: gathers binary dependencies from installed packages.
+- `hiddenimports`: includes imports PyInstaller may miss.
+- `collect_all(...)`: pulls Kivy, NumPy, and serial package assets into the bundle.
+- `Analysis`, `PYZ`, `EXE`, and `COLLECT`: describe the normal PyInstaller build stages.
 
 ### `README.md`
 
 Purpose:
-This is the first-stop project guide.
+First-stop guide for running and understanding `PythonGUI`.
 
-Rationale:
-It explains the project at a high level and gives new readers a mental map before they dive into the code.
+## Config Files
 
 ### `configs/default_user.json`
 
 Purpose:
-This file stores the default user-facing settings for connection, device geometry, and UI timing.
+Default user-facing settings for connection, device geometry, and UI timing.
 
-Rationale:
-Keeping defaults in JSON makes the app behavior editable without changing Python code.
+Important fields:
 
-Fields:
-
-- `serial.port`: default COM port name.
+- `serial.port`: default COM port.
 - `serial.timeout_s`: serial read timeout.
-- `serial.reconnect_on_start`: whether the app should auto-connect on launch.
+- `serial.reconnect_on_start`: whether startup should reconnect automatically.
 - `device.sample_count`: expected total samples in one frame.
-- `device.effective_start_index`: where the useful pixels begin.
+- `device.effective_start_index`: first useful pixel.
 - `device.effective_sample_count`: number of useful pixels.
-- `device.trailing_dummy_count`: number of dummy pixels after the useful region.
+- `device.trailing_dummy_count`: dummy pixels after the useful region.
 - `device.adc_resolution_bits`: ADC resolution.
 - `device.adc_reference_volts`: ADC full-scale voltage.
 - `ui.refresh_interval_ms`: requested plot refresh period.
-- `ui.max_session_frames`: session buffer size in frames.
+- `ui.max_session_frames`: full-frame export buffer size.
+
+The `UIConfig` model also has display defaults that may not be written in this default JSON file until the user saves active config:
+
+- `live_graph_mode`
+- `spectrogram_time_window_s`
+- `show_command_card`
+- `show_diagnostics_card`
+- `show_performance_card`
+- `show_frame_data_frame`
+- `show_frame_data_layout`
+- `show_frame_data_edge`
+- `show_frame_data_refresh`
+- `show_frame_data_session`
+- `show_frame_data_cursor`
 
 ### `configs/default_calibration.json`
 
 Purpose:
-This file stores default calibration settings.
+Default calibration settings for signal correction, wavelength mapping, and response correction.
 
-Rationale:
-It separates raw app behavior from scientific correction settings.
+Important fields:
 
-Fields:
+- `apply_dark_subtraction`
+- `apply_intensity_correction`
+- `apply_quantum_efficiency_correction`
+- `display_normalization_mode`
+- `wavelength_coefficients`
+- `wavelength_fit_order`
+- `pixel_mapping_points`
+- `bias_capture_frame_count`
+- `bias_counts`
+- `dark_offset_counts`
+- `intensity_correction`
+- `quantum_efficiency_points`
+- `quantum_efficiency_normalization_wavelength_nm`
 
-- `apply_dark_subtraction`: whether dark offsets should be removed.
-- `apply_intensity_correction`: whether multiplicative correction should be applied.
-- `wavelength_coefficients`: polynomial coefficients for mapping pixel index to wavelength.
-- `dark_offset_counts`: optional per-pixel dark offsets.
-- `intensity_correction`: optional per-pixel scale factors.
-
-### `logs/vis_nir_spec.log`
-
-Purpose:
-This is the runtime log output file.
-
-Rationale:
-It gives a persistent record of what the app did, which helps with debugging without needing the console window.
+Active user edits are saved to `configs/user.json` and `configs/calibration.json`.
 
 ## Package Marker Files
 
-These files exist mostly to mark folders as Python packages and to hold short package descriptions.
-They contain no active logic.
+These files mostly mark folders as Python packages and may hold short package descriptions:
 
-### `backend/__init__.py`
-
-Purpose:
-Marks `backend` as a package.
-
-Rationale:
-This lets Python import code from the folder using package paths like `backend.core.runtime`.
-
-### `backend/core/__init__.py`
-
-Purpose:
-Marks `backend/core` as a package and labels it as the home of the main services.
-
-### `backend/device/__init__.py`
-
-Purpose:
-Marks `backend/device` as a package and labels it as the transport and protocol layer.
-
-### `backend/models/__init__.py`
-
-Purpose:
-Marks `backend/models` as a package and labels it as the shared data-model layer.
-
-### `backend/processing/__init__.py`
-
-Purpose:
-Marks `backend/processing` as a package and labels it as the math helper layer.
-
-### `backend/storage/__init__.py`
-
-Purpose:
-Marks `backend/storage` as a package and labels it as the persistence layer.
-
-### `frontend/__init__.py`
-
-Purpose:
-Marks `frontend` as a package and labels it as the UI layer.
+- `backend/__init__.py`
+- `backend/core/__init__.py`
+- `backend/device/__init__.py`
+- `backend/models/__init__.py`
+- `backend/processing/__init__.py`
+- `backend/storage/__init__.py`
+- `frontend/__init__.py`
 
 ## Model Files
 
-The model files define the shapes of the data moving through the app.
-These are mostly Pydantic models, which means they are structured Python objects with validation support.
+The model files define the structured objects passed between services.
+Most are Pydantic models, which means the app gets validation and safe copying behavior.
 
 ### `backend/models/config.py`
 
 Purpose:
-Defines structured configuration objects for the app.
-
-Rationale:
-Using classes for config makes the rest of the code easier to read than passing around loose dictionaries.
+Defines structured configuration objects for serial settings, device geometry, UI settings, and calibration.
 
 Definitions:
 
-- `SerialConfig`: stores serial-port settings.
-- `DeviceConfig`: stores expected CCD geometry and ADC characteristics.
-- `UIConfig`: stores user-interface timing and session-buffer settings.
-- `UserConfig`: groups `serial`, `device`, and `ui` into one object.
-- `CalibrationConfig`: stores calibration choices and correction arrays.
+- Constants such as `DEFAULT_TOTAL_SAMPLE_COUNT`, `DEFAULT_EFFECTIVE_START_INDEX`, `DEFAULT_DISPLAY_NORMALIZATION_MODE`, and `DEFAULT_LIVE_GRAPH_MODE`.
+- `SerialConfig`: serial-port settings.
+- `DeviceConfig`: expected CCD frame layout and ADC characteristics.
+- `UIConfig`: refresh timing, session size, graph mode, spectrogram window, and visibility toggles.
+- `UserConfig`: groups `serial`, `device`, and `ui`.
+- `PixelMappingPoint`: one pixel-to-wavelength reference pair.
+- `SpectralResponsePoint`: one wavelength/relative-response pair.
+- `CalibrationConfig`: calibration toggles and stored calibration arrays.
+- `has_saved_wavelength_mapping(...)`: reports whether the calibration contains real wavelength mapping points and non-default coefficients.
+- `ensure_pixel_mode_without_mapping(...)`: resets empty wavelength mappings to pixel mode.
+
+Why this file matters:
+It is the source of truth for what settings the app understands.
+When JSON files omit newer fields, these models supply defaults.
 
 ### `backend/models/frames.py`
 
 Purpose:
-Defines the packet and frame objects used while receiving and storing spectrometer data.
-
-Rationale:
-Separating raw incoming packet types from stored spectrum frames makes the data flow easier to reason about.
+Defines packet and frame objects used while receiving, displaying, storing, and exporting spectrometer data.
 
 Definitions:
 
-- `utc_now()`: helper that returns the current UTC timestamp.
-- `BannerPacket`: a structured wrapper for firmware banner lines or startup messages.
-- `TextLinePacket`: a structured wrapper for any plain text line that is not treated as a banner.
-- `FramePacket`: the direct parsed representation of one incoming device frame packet.
-- `DevicePacket`: a type alias meaning "one of the supported incoming packet types."
-- `SpectrumFrame`: the app's stored representation of a frame after the backend has accepted it.
+- `utc_now()`: shared UTC timestamp helper.
+- `BannerPacket`: firmware banner or startup line.
+- `TextLinePacket`: generic device text line.
+- `FramePacket`: one decoded binary frame packet from the STM32.
+- `DevicePacket`: type alias for all packet variants.
+- `SpectrumFrame`: app-level frame containing raw samples, processed live-display values, spectrogram row data, dark reference, and optional export columns.
+- `SpectrogramHistoryFrame`: compact frame row used by the rolling spectrogram.
 
 Notes:
 
-- `SpectrumFrame.adc_counts` is the most important live-data field for the plot.
-- `SpectrumFrame.wavelengths_nm`, `volts`, and `processed_intensity` may be empty during live operation and then filled on export.
+- `SpectrumFrame.adc_counts` preserves the raw samples.
+- `SpectrumFrame.live_display_counts` stores the processed 0-to-1 display signal used by the line plot.
+- `SpectrumFrame.spectrogram_row` stores a compressed 0-to-1 row for the rolling spectrogram.
+- `SpectrumFrame.wavelengths_nm`, `volts`, and `processed_intensity` can be filled lazily during export.
 
 ### `backend/models/status.py`
 
 Purpose:
-Defines application status objects.
-
-Rationale:
-This separates live state from configuration and raw frame data.
+Defines live app status objects.
 
 Definitions:
 
-- `utc_now()`: helper that returns the current UTC timestamp.
-- `ConnectionState`: enum describing whether the device is disconnected, connecting, connected, or in error.
-- `DeviceStatus`: everything the UI needs to know about the device right now.
-- `SessionStatus`: session buffer state, such as how many frames are stored.
-- `CommandResult`: a small success-or-failure result object for UI commands.
-- `AppSnapshot`: one combined view of device status, session status, latest spectrum, and recent logs.
+- `ConnectionState`: disconnected, connecting, connected, or error.
+- `DeviceStatus`: current device state, frame counters, sample preview, firmware lines, and errors.
+- `SessionStatus`: session ID, start time, buffered frame count, dropped frame count, and last export path.
+- `CommandResult`: success/failure result for UI actions.
+- `AppSnapshot`: one read-only snapshot used by the UI.
 
 ## Core Service Files
 
-The core layer coordinates the whole application.
+The core layer coordinates state, sessions, commands, runtime wiring, and performance metrics.
 
 ### `backend/core/state_manager.py`
 
 Purpose:
 Owns the app's current live state.
 
-Rationale:
-The UI and services need one central place to read and update state safely.
-
 Definitions:
 
-- `utc_now()`: helper that returns the current UTC timestamp.
-- `StateManager`: thread-safe holder for configs, device status, session status, last spectrum, and logs.
+- `StateManager`: thread-safe holder for user config, calibration config, device status, session status, latest spectrum frame, firmware messages, and recent logs.
 
-Important `StateManager` methods:
+Important methods:
 
-- `__init__(...)`: builds the initial in-memory state objects.
-- `new_session_id()`: creates a short random session ID.
-- `get_user_config()`: returns a safe copy of the user config.
-- `set_user_config(...)`: stores new user config and updates matching device-status defaults.
-- `get_calibration_config()`: returns a safe copy of the calibration config.
-- `set_calibration_config(...)`: stores new calibration config.
-- `set_connection_state(...)`: updates connection-related fields.
-- `add_firmware_message(...)`: stores recent firmware banner text.
-- `append_log(...)`: adds a timestamped message to the rolling log list.
-- `reset_frame_tracking()`: clears frame counters and removes the last spectrum after disconnect or reconnect.
-- `update_from_frame(...)`: copies frame metadata from the newest incoming frame into `DeviceStatus`.
-- `set_last_spectrum(...)`: stores the newest full `SpectrumFrame`.
-- `latest_spectrum()`: returns the newest stored spectrum object.
-- `set_session_status(...)`: updates the current session status object.
-- `snapshot(...)`: builds a combined `AppSnapshot` for UI reads.
+- `get_user_config()` and `set_user_config(...)`
+- `get_calibration_config()` and `set_calibration_config(...)`
+- `set_connection_state(...)`
+- `add_firmware_message(...)`
+- `append_log(...)`
+- `reset_frame_tracking()`
+- `update_from_frame(...)`
+- `set_last_spectrum(...)`
+- `latest_spectrum()`
+- `set_session_status(...)`
+- `snapshot(...)`
 
 Why this file matters:
-
-- it is the shared memory of the app
-- it uses a lock so multiple threads do not trample each other
-- it lets the UI stay simple because the UI can ask for one snapshot instead of rebuilding state itself
+Multiple threads touch application state.
+This class keeps reads and writes guarded by a lock and gives the UI one snapshot to render.
 
 ### `backend/core/session_manager.py`
 
 Purpose:
-Owns the rolling frame buffer and session exports.
-
-Rationale:
-Keeping session history separate from current live state prevents the state object from growing into too many responsibilities.
+Owns rolling capture buffers and CSV export.
 
 Definitions:
 
-- `utc_now()`: helper that returns the current UTC timestamp.
-- `SessionManager`: stores recent frames, tracks dropped frames, resets sessions, and exports CSV files.
+- `DEFAULT_MAX_SPECTROGRAM_HISTORY_FRAMES`: compact spectrogram-history depth.
+- `SessionManager`: stores full `SpectrumFrame` objects for export and compact `SpectrogramHistoryFrame` rows for heatmap display.
 
-Important `SessionManager` methods:
+Important methods:
 
-- `__init__(...)`: creates the frame deque, sets the export directory, and starts a new session.
-- `_new_session_id()`: creates a short random session ID.
-- `set_max_frames(...)`: changes the rolling buffer size while keeping the newest data.
-- `append_frame(...)`: adds one frame and counts it as dropped if the deque was already full.
-- `set_spectrum_builder(...)`: stores the helper used for export-time derived columns.
-- `reset()`: clears the session and starts a fresh session ID.
-- `export_csv()`: writes the current session buffer to disk.
-- `frames()`: returns a copy of the buffered frame list.
-- `status()`: returns a `SessionStatus` summary.
+- `set_max_frames(...)`: resize the full-frame export buffer.
+- `set_max_spectrogram_frames(...)`: resize the compact spectrogram buffer.
+- `append_frame(...)`: add one full frame and one compact spectrogram row when available.
+- `set_spectrum_builder(...)`: provide the export-time processing helper.
+- `reset()`: start a fresh session.
+- `export_csv()`: write the full-frame buffer to `exports/spectrometer_session_*.csv`.
+- `frames()`: return buffered full frames.
+- `spectrogram_frames()`: return compact history rows.
+- `status()`: return the current `SessionStatus`.
+
+Why this file matters:
+The line plot and CSV export need full data, while the rolling spectrogram needs many rows without keeping an unbounded raw-frame history.
 
 ### `backend/core/runtime.py`
 
 Purpose:
 Creates and wires together the application's main objects.
 
-Rationale:
-This keeps startup logic in one place so the entry point stays small.
-
 Definitions:
 
-- `RuntimePaths`: immutable bundle of important filesystem paths.
-- `AppRuntime`: immutable bundle of the service objects the app needs.
-- `resolve_runtime_paths(...)`: decides where configs, logs, and project files live, including packaged-app cases.
-- `configure_logging(...)`: sets up file and console logging.
-- `build_runtime(...)`: loads configs, creates stores and services, wires dependencies together, and returns `AppRuntime`.
+- `RuntimePaths`: bundle root, project root, log directory, log file, and frozen-app flag.
+- `AppRuntime`: immutable bundle of all services used by the UI.
+- `resolve_runtime_paths(...)`: handles source-tree vs PyInstaller path layout.
+- `configure_logging(...)`: configures file and console logging.
+- `build_runtime(...)`: loads configs, normalizes calibration, creates stores/services, and returns `AppRuntime`.
 
 Why this file matters:
-
-- it is the composition root of the app
-- if you want to know how everything is connected, this is the place to read
+It is the composition root.
+If you want to know what objects exist and how they are connected, start here.
 
 ### `backend/core/command_service.py`
 
 Purpose:
-Acts as the central control layer between transport, parsing, state updates, session buffering, and UI-triggered commands.
-
-Rationale:
-Without this service, command logic would be scattered between the UI, transport, and state layers.
+Acts as the control layer between transport, parsing, state updates, session buffering, calibration updates, and UI commands.
 
 Definitions:
 
-- `CommandService`: the main coordinator for connection management, incoming bytes, config application, and user commands.
+- `CommandService`: main coordinator for connection management, incoming bytes, config application, raw commands, frame processing, missed-frame detection, and packet queue handling.
 
-Important `CommandService` methods:
+Important methods:
 
-- `__init__(...)`: stores dependencies, creates a `DeviceStreamReader`, starts the packet-processing thread, and registers transport callbacks.
-- `list_serial_ports()`: asks the transport for visible COM ports.
-- `connect(...)`: resets packet state, opens the port, updates config and device status, and logs the result.
-- `disconnect()`: closes the transport, clears pending input, resets frame tracking, and logs the result.
-- `send_raw_command(...)`: sends a text command to the device over USB CDC.
-- `apply_user_config(...)`: applies user config to state and updates dependent services.
-- `apply_calibration_config(...)`: applies calibration config to the calibration manager and state.
-- `refresh_session_status()`: refreshes the session summary stored in `StateManager`.
-- `_handle_transport_state(...)`: receives state changes from the transport layer and mirrors them into `StateManager`.
-- `_handle_bytes(...)`: receives raw incoming bytes and queues them for background processing.
-- `_processing_loop()`: runs in a background thread and continuously turns queued bytes into packets.
-- `_process_packet(...)`: handles each parsed packet and decides how it changes app state.
-- `_clear_pending_bytes()`: empties the byte queue during reconnect or disconnect.
+- `list_serial_ports()`
+- `connect(...)`
+- `disconnect()`
+- `send_raw_command(...)`
+- `apply_user_config(...)`
+- `apply_calibration_config(...)`
+- `refresh_session_status()`
+- `_handle_transport_state(...)`
+- `_handle_bytes(...)`
+- `_processing_loop()`
+- `_process_packet(...)`
+- `_clear_pending_bytes()`
 
 Why this file matters:
+It keeps the serial reader thread light by pushing packet parsing and frame processing to a worker queue.
+It is also where frame-size mismatch warnings, missed-frame logging, and performance counters are recorded.
 
-- it is the traffic controller of the app
-- it keeps the serial reader thread light by moving packet work to a separate queue and processor thread
-- it is where preview-mode detection and missed-frame detection live
+### `backend/core/performance_monitor.py`
+
+Purpose:
+Collects rolling timing, value, and counter metrics from backend and UI paths.
+
+Definitions:
+
+- `PerformanceMetricSnapshot`: timing metric summary.
+- `PerformanceValueSnapshot`: rolling numeric signal summary.
+- `PerformanceCounterSnapshot`: event-counter summary.
+- `PerformanceMonitor`: records durations, values, counters, snapshots, and a formatted report.
+
+Important methods:
+
+- `measure(...)`: context manager for timing a block.
+- `set_enabled(...)`: pause or resume metric collection.
+- `reset()`: clear all rolling metrics.
+- `record_duration(...)`
+- `record_value(...)`
+- `increment(...)`
+- `snapshot()`
+- `snapshot_values()`
+- `snapshot_counters()`
+- `format_report(...)`
+
+Why this file matters:
+The Performance card uses this report to explain stream rate, UI cadence, queue pressure, missed frames, and likely 125 Hz bottlenecks.
 
 ## Device Files
 
-The device layer is responsible for talking to external hardware and for rebuilding structured packets from raw bytes.
+The device layer talks to external hardware and rebuilds structured packets from raw USB CDC bytes.
 
 ### `backend/device/base_transport.py`
 
 Purpose:
-Defines the abstract interface that all transport types must follow.
-
-Rationale:
-Using a base transport means the rest of the app can talk to "a transport" without caring whether it is serial, WiFi, or something else later.
+Defines the abstract interface every transport must follow.
 
 Definitions:
 
-- `BytesCallback`: callback type for raw byte delivery.
-- `StateCallback`: callback type for connection state delivery.
-- `BaseTransport`: abstract base class for all transport implementations.
+- `BytesCallback`: callback type for raw bytes.
+- `StateCallback`: callback type for connection-state changes.
+- `BaseTransport`: abstract base class with callback registration and required transport methods.
 
-Important `BaseTransport` methods:
+Required methods:
 
-- `__init__()`: initializes empty callback slots.
-- `set_callbacks(...)`: registers functions to receive bytes and connection-state changes.
-- `_emit_bytes(...)`: helper that calls the registered byte callback.
-- `_emit_state(...)`: helper that calls the registered state callback.
-- `connect(...)`: abstract method subclasses must implement.
-- `disconnect()`: abstract method subclasses must implement.
-- `write(...)`: abstract method subclasses must implement.
-- `is_connected()`: abstract method subclasses must implement.
-- `list_ports()`: abstract method subclasses must implement.
-
-### `backend/device/packet_reader.py`
-
-Purpose:
-Turns an arbitrary stream of incoming bytes into complete packet objects.
-
-Rationale:
-Serial data does not arrive in nice, neat packet-sized chunks.
-This file holds a buffer and rebuilds complete packets out of messy partial arrivals.
-
-Definitions:
-
-- `DeviceStreamReader`: buffered parser for mixed text and binary device data.
-- `FRAME_HEADER_LIMIT`: safety limit used when trimming invalid garbage from the buffer.
-
-Important `DeviceStreamReader` methods:
-
-- `__init__()`: creates the internal byte buffer.
-- `feed(...)`: appends new bytes, searches for binary frames or newline-terminated text, parses anything complete, and returns packet objects.
-- `reset()`: clears the internal buffer.
-
-### `backend/device/protocol.py`
-
-Purpose:
-Defines the wire-level protocol rules for text and binary frame packets.
-
-Rationale:
-Keeping packet details in one file prevents protocol constants from being scattered throughout the app.
-
-Definitions:
-
-- `PACKET_MAGIC`: the binary frame signature used to recognize frame packets.
-- `PACKET_VERSION`: current binary protocol version.
-- `PACKET_TYPE_FRAME`: the type code for a frame packet.
-- `FRAME_HEADER_STRUCT`: the binary struct layout used for parsing frame headers.
-- `parse_device_line(...)`: interprets one decoded text line as a firmware banner or generic text packet.
-- `encode_raw_command(...)`: turns a user command string into an ASCII line ending with `\n`.
-- `try_parse_binary_frame(...)`: tries to parse one binary frame packet from a byte buffer and returns both the packet and how many bytes were consumed.
+- `connect(...)`
+- `disconnect()`
+- `write(...)`
+- `is_connected()`
+- `list_ports()`
 
 ### `backend/device/serial_transport.py`
 
 Purpose:
 Implements the real COM-port transport with `pyserial`.
 
-Rationale:
-This file isolates serial-port details so the rest of the app never has to call `serial.Serial(...)` directly.
-
 Definitions:
 
-- `SerialTransport`: concrete serial implementation of `BaseTransport`.
+- `SerialTransport`: opens the serial port, starts a reader thread, writes bytes with a lock, and lists visible COM ports.
 
-Important `SerialTransport` methods:
-
-- `__init__()`: creates storage for the serial handle, reader thread, stop event, and write lock.
-- `connect(...)`: opens the port and starts the serial reader thread.
-- `disconnect()`: stops the reader thread, closes the port, and emits a disconnected state.
-- `write(...)`: writes bytes to the port in a thread-safe way.
-- `is_connected()`: reports whether the serial port is open.
-- `list_ports()`: returns a simple list of visible serial ports.
-- `_reader_loop()`: background loop that continuously reads incoming bytes and emits them to the registered callback.
+Why this file matters:
+Everything outside this module can talk to a transport abstraction instead of directly calling `serial.Serial(...)`.
 
 ### `backend/device/wifi_transport.py`
 
 Purpose:
-Reserves a place for a future WiFi transport.
+Placeholder for a future WiFi transport.
 
-Rationale:
-The project structure already allows for more than one transport type, even though WiFi is not implemented yet.
+Current behavior:
+All required transport operations raise `NotImplementedError` or report disconnected/no ports.
+
+### `backend/device/packet_reader.py`
+
+Purpose:
+Turns arbitrary byte chunks into complete packet objects.
 
 Definitions:
 
-- `WifiTransport`: placeholder transport that raises `NotImplementedError` for unsupported operations.
+- `DeviceStreamReader`: buffered parser for mixed text and binary device streams.
+- `FRAME_HEADER_LIMIT`: safety limit for trimming invalid buffer data.
+
+Important methods:
+
+- `feed(...)`: appends bytes, parses complete `CCD1` frames or newline text, handles text before a binary frame, and returns packet objects.
+- `reset()`: clears the parse buffer during reconnect/disconnect.
+
+### `backend/device/protocol.py`
+
+Purpose:
+Defines the wire-level protocol for firmware text and binary frame packets.
+
+Definitions:
+
+- `PACKET_MAGIC`: `b"CCD1"`.
+- `PACKET_VERSION`: current binary protocol version.
+- `PACKET_TYPE_FRAME`: frame packet type code.
+- `MAX_BINARY_SAMPLE_COUNT`: parser safety cap.
+- `FRAME_HEADER_STRUCT`: little-endian binary header layout.
+- `parse_device_line(...)`: classifies banner/status lines vs generic text.
+- `encode_raw_command(...)`: converts raw UI command text into an ASCII line ending.
+- `try_parse_binary_frame(...)`: validates and decodes one binary frame packet.
+
+Packet shape:
+The firmware sends a packed header matching `<4sBBHIHHHHI` followed by `sample_count * 2` bytes of little-endian unsigned 16-bit ADC samples.
 
 ## Processing Files
 
-The processing layer performs the math used to turn raw ADC counts into more meaningful values.
+The processing layer turns raw ADC counts into display, export, and calibration outputs.
 
 ### `backend/processing/adc_converter.py`
 
 Purpose:
 Converts ADC counts into volts.
 
-Rationale:
-This keeps a very common math operation in one reusable helper instead of repeating the same formula in many places.
-
 Definitions:
 
-- `counts_to_volts(...)`: scales raw counts into volt values based on ADC resolution and reference voltage.
-
-### `backend/processing/calibration_manager.py`
-
-Purpose:
-Owns the calibration settings and applies the full correction pipeline.
-
-Rationale:
-Putting calibration policy in one object makes it easier to update behavior when the user changes calibration settings.
-
-Definitions:
-
-- `CalibrationManager`: stores calibration config and applies dark subtraction, ADC conversion, intensity correction, and wavelength mapping.
-
-Important `CalibrationManager` methods:
-
-- `__init__(...)`: stores the calibration config.
-- `config`: property that returns the current calibration config.
-- `update_config(...)`: replaces the stored calibration config.
-- `apply(...)`: runs the complete calibration pipeline on one set of sample indices and ADC counts.
+- `counts_to_volts(...)`: scales counts by ADC resolution and reference voltage.
 
 ### `backend/processing/dark_subtraction.py`
 
 Purpose:
-Subtracts dark offsets from signal values.
-
-Rationale:
-This logic is isolated so it can be reused from both live and export paths.
+Provides additive dark/bias helpers.
 
 Definitions:
 
-- `apply_dark_subtraction(...)`: subtracts either a direct same-length dark array or an index-mapped dark array.
+- `estimate_dark_level(...)`: median dark reference from an index range.
+- `subtract_dark_level(...)`: subtract one scalar baseline from all samples.
+- `apply_dark_subtraction(...)`: subtract a direct or index-mapped dark vector.
 
 ### `backend/processing/intensity_correction.py`
 
 Purpose:
-Applies multiplicative correction factors to signal values.
-
-Rationale:
-This is the inverse of the dark-subtraction helper in spirit: one helper for one job.
+Applies multiplicative correction factors.
 
 Definitions:
 
-- `apply_intensity_correction(...)`: multiplies values by either a direct same-length array or an index-mapped correction array.
+- `apply_intensity_correction(...)`: multiplies values by direct or index-mapped correction factors.
 
 ### `backend/processing/wavelength_map.py`
 
 Purpose:
-Turns pixel indices into wavelengths.
-
-Rationale:
-This keeps the wavelength polynomial separate from the rest of the processing pipeline.
+Maps sample indices to wavelengths.
 
 Definitions:
 
-- `indices_to_wavelengths(...)`: evaluates a polynomial using sample index as the input variable.
+- `indices_to_wavelengths(...)`: evaluates polynomial coefficients with sample index as the input.
+
+### `backend/processing/calibration_manager.py`
+
+Purpose:
+Owns calibration settings and higher-level calibration operations.
+
+Definitions:
+
+- `MIN_RESPONSE_VALUE`: lower bound for QE/response correction factors.
+- `CalibrationManager`: stores current calibration config and applies calibration math.
+
+Important methods:
+
+- `config`: returns the current config.
+- `update_config(...)`: replaces the current config.
+- `capture_bias_from_frames(...)`: averages covered-sensor frames into a master bias vector `B_p`.
+- `fit_wavelength_coefficients(...)`: fits wavelength polynomial coefficients from pixel mapping points.
+- `build_quantum_efficiency_curve(...)`: interpolates and normalizes a wavelength-dependent response curve.
+- `apply(...)`: runs a general calibration path returning wavelengths, volts, and intensity.
 
 ### `backend/processing/spectrum_builder.py`
 
 Purpose:
-Builds `SpectrumFrame` objects and creates export-time derived columns.
-
-Rationale:
-This file bridges the gap between raw incoming frame packets and the app's higher-level spectrum representation.
+Builds `SpectrumFrame` objects and derived export columns from raw frame packets.
 
 Definitions:
 
-- `SpectrumBuilder`: helper for creating `SpectrumFrame` objects and export columns.
+- `FRAME_DARK_START_INDEX` and `FRAME_DARK_END_INDEX`: shielded pixel range used for frame-wise dark reference.
+- `SPECTROGRAM_ROW_TARGET_WIDTH`: compact heatmap row width.
+- `SpectrumBuilder`: main frame conversion and live/export processing helper.
 
-Important `SpectrumBuilder` methods:
+Important methods:
 
-- `__init__(...)`: stores dependencies and prepares a wavelength cache.
-- `update_device_config(...)`: updates the ADC/device settings used during export calculations.
-- `build_from_frame(...)`: creates a `SpectrumFrame` from one parsed `FramePacket`.
-- `build_export_columns(...)`: computes wavelengths, volts, and processed intensity for export when those fields are not already stored.
+- `update_device_config(...)`: stores updated ADC/device settings.
+- `build_from_frame(...)`: builds one `SpectrumFrame` with raw counts, processed live-display counts, dark reference, and compact spectrogram row.
+- `rebuild_live_frame(...)`: rebuilds the latest frame when calibration changes.
+- `build_export_columns(...)`: computes processed counts, wavelengths, volts, normalized intensity, and dark reference during CSV export.
+- `_build_processed_columns(...)`: central calibration pipeline shared by live display and export.
+- `_build_spectrogram_row(...)`: compresses effective pixels into a fixed-width heatmap row.
+- `_normalize_processed_signal(...)`: supports absolute-saturation and auto-peak display normalization.
+- `_normalize_spectrogram_signal(...)`: keeps rolling spectrogram color scale comparable across frames.
 
 Why this file matters:
-
-- it keeps the live path lighter by storing raw ADC data quickly
-- it keeps export-time scientific columns available without forcing that cost on every live update
+It is the bridge between raw hardware packets and what the user sees.
+The app preserves raw ADC samples while plotting processed display values.
 
 ## Storage Files
 
-The storage layer is responsible for reading and writing files.
+The storage layer reads/writes JSON config and CSV exports.
 
 ### `backend/storage/config_store.py`
 
 Purpose:
 Loads and saves user config files.
 
-Rationale:
-This keeps JSON file handling out of the UI and out of the service layer.
-
 Definitions:
 
-- `ConfigStore`: reads and writes `UserConfig` JSON files.
-
-Important `ConfigStore` methods:
-
-- `__init__(...)`: stores the default and active config paths.
-- `load()`: reads the active config if it exists, otherwise the default config.
-- `save(...)`: writes a config object to the active config path.
+- `ConfigStore`: reads the active user config if present, otherwise the default config, and saves active config.
 
 ### `backend/storage/calibration_store.py`
 
 Purpose:
 Loads and saves calibration config files.
 
-Rationale:
-This mirrors `ConfigStore` but for calibration settings.
-
 Definitions:
 
-- `CalibrationStore`: reads and writes `CalibrationConfig` JSON files.
-
-Important `CalibrationStore` methods:
-
-- `__init__(...)`: stores the default and active calibration paths.
-- `load()`: reads the active calibration file if present, otherwise the default one.
-- `save(...)`: writes a calibration object to the active calibration path.
+- `CalibrationStore`: mirrors `ConfigStore` for calibration settings.
 
 ### `backend/storage/export_csv.py`
 
 Purpose:
 Exports stored frames to a CSV file.
 
-Rationale:
-CSV output is a separate concern from live display, so it belongs in the storage layer.
-
 Definitions:
 
-- `export_spectra_csv(...)`: writes one row per sample, optionally asking `SpectrumBuilder` to compute wavelength, volt, and intensity columns during export.
+- `export_spectra_csv(...)`: writes one row per sample and asks `SpectrumBuilder` for derived columns when needed.
 
-Why this file matters:
+CSV columns:
 
-- it turns frame-oriented memory into sample-oriented tabular data
-- it is the last step in the capture pipeline when the user wants a file
+- `frame_id`
+- `timestamp`
+- `source`
+- `expected_sample_count`
+- `effective_start_index`
+- `effective_sample_count`
+- `frame_flags`
+- `sample_index`
+- `wavelength_nm`
+- `raw_adc_count`
+- `processed_adc_count`
+- `frame_dark_reference_count`
+- `volts`
+- `processed_intensity`
 
 ## Frontend File
 
@@ -629,89 +574,101 @@ Why this file matters:
 Purpose:
 Defines the entire desktop user interface.
 
-Rationale:
-The UI is kept in one file because it is tightly connected to one window and one graphing experience.
+Major classes:
 
-Definitions:
-
-- `Card`: a reusable rounded panel widget for grouping related controls.
-- `SpectrumPlot`: a custom widget that draws the spectrum graph.
-- `DesktopSpectrometerApp`: the main Kivy application class.
-- `run_desktop_app(...)`: starts the desktop app with a prepared runtime object.
+- `Card`: reusable styled panel container.
+- `SpectrumPlot`: custom line-plot widget with cursor support.
+- `SpectrogramPlot`: custom heatmap widget backed by a Kivy texture.
+- `XAxisLabels`: custom x-axis label widget.
+- `YAxisLabels`: custom y-axis label widget.
+- `DesktopSpectrometerApp`: Kivy application class that builds the UI and handles user actions.
+- `run_desktop_app(...)`: starts the prepared Kivy app.
 
 #### `Card`
 
 Purpose:
-A styled `BoxLayout` with a rounded background.
-
-Rationale:
-This avoids repeating the same panel styling everywhere in `build()`.
-
-Methods:
-
-- `__init__(...)`: sets the layout style and creates the rounded background.
-- `_update_background(...)`: resizes the background shape when the widget moves or changes size.
+Shared rounded panel used for header, side-panel cards, and manager cards.
 
 #### `SpectrumPlot`
 
 Purpose:
-Draws the live spectrum line manually using Kivy graphics primitives.
+Draws the processed line spectrum with guide lines and an optional cursor.
 
-Rationale:
-Using a custom widget makes it easier to control axis scaling, colors, and chunked drawing for large line sets.
+Important methods:
 
-Methods:
+- `set_series(...)`
+- `set_cursor_callback(...)`
+- `current_cursor_value()`
+- `set_adc_range(...)`
+- `set_grid_counts(...)`
+- touch handlers for click/drag cursor updates
+- `_iter_line_chunks(...)`
 
-- `__init__(...)`: initializes the stored series and ADC range and binds redraws to resize events.
-- `set_series(...)`: stores the current x and y data and triggers a redraw.
-- `set_adc_range(...)`: stores the y-axis range and triggers a redraw.
-- `_redraw(...)`: clears the canvas and redraws the background, guide lines, and spectrum line.
-- `_iter_line_chunks(...)`: splits a long line into smaller chunks so Kivy can draw it more safely.
+#### `SpectrogramPlot`
+
+Purpose:
+Draws recent compact frame rows as a rolling heatmap.
+
+Important methods:
+
+- `set_frame_history(...)`
+- `_try_incremental_texture_update(...)`
+- `_build_texture(...)`
+- `_fit_row_width(...)`
+- `_encode_row_rgba(...)`
+- `_heatmap_rgb(...)`
+
+Why this class matters:
+The spectrogram uses compact normalized rows so the UI can show a recent time window without redrawing thousands of raw pixels per frame.
+
+#### `XAxisLabels` and `YAxisLabels`
+
+Purpose:
+Draw axis labels in custom widgets so labels align with the plot area and can switch between modes.
+
+The x-axis shows pixel indices until saved wavelength mapping exists, then shows wavelength labels.
+The spectrogram y-axis shows recent elapsed time labels ending at `Now`.
 
 #### `DesktopSpectrometerApp`
 
 Purpose:
-Owns the whole window, all user interactions, and the timed UI refresh behavior.
+Owns the window, widget references, user actions, timed refresh, responsive layout, calibration workflows, and display/layout settings.
 
-Rationale:
-Kivy apps are usually organized around one main application class that builds widgets and reacts to events.
+Important user-facing actions:
 
-Methods:
+- `refresh_ports(...)`
+- `connect_device(...)`
+- `disconnect_device(...)`
+- `toggle_live_display(...)`
+- `save_user_config(...)`
+- `save_calibration(...)`
+- `preview_calibration(...)`
+- `capture_bias_reference(...)`
+- `start_guided_pixel_mapping(...)`
+- `capture_guided_pixel_mapping_point(...)`
+- `reset_guided_pixel_mapping(...)`
+- `fit_wavelength_coefficients_from_points(...)`
+- `export_session(...)`
+- `reset_session(...)`
+- `send_raw_command(...)`
+- `open_calibration_manager(...)`
+- `open_display_manager(...)`
+- `show_spectrum_view(...)`
+- `toggle_side_panel(...)`
 
-- `__init__(...)`: stores the shared runtime and creates placeholders for the widgets that need later updates.
-- `build()`: creates the complete window layout and returns the root widget.
-- `on_start()`: runs after the window is created, schedules refresh timers, and optionally reconnects to the device.
-- `on_stop()`: disconnects the transport when the app closes.
-- `refresh_ports(...)`: updates the COM-port list in the UI.
-- `connect_device(...)`: reads UI input and asks `CommandService` to connect.
-- `disconnect_device(...)`: asks `CommandService` to disconnect.
-- `save_user_config(...)`: reads current UI values, saves them to disk, and applies them to the running app.
-- `save_calibration(...)`: reads calibration inputs, saves them, and applies them to the running app.
-- `export_session(...)`: exports the buffered frames to CSV.
-- `reset_session(...)`: clears the session buffer.
-- `send_raw_command(...)`: sends a raw command to the STM32.
-- `refresh_status(...)`: updates slower-changing text fields such as connection state and logs.
-- `refresh_plot(...)`: updates the graph, stream message, axis labels, layout text, and measured refresh speed.
-- `refresh_view(...)`: runs both refresh helpers together.
-- `_record_plot_update()`: records the time of a plot update for refresh-rate measurement.
-- `_current_plot_refresh_hz()`: estimates the current graph refresh rate from recent timestamps.
-- `set_notice(...)`: changes the message shown in the top header area.
-- `_section_title(...)`: helper for styled section headers.
-- `_info_label(...)`: helper for standard info labels.
-- `_small_label(...)`: helper for compact explanatory text.
-- `_axis_label(...)`: helper for axis labels.
-- `_button(...)`: helper for consistently styled buttons.
-- `_checkbox_row(...)`: helper that lays out a checkbox next to its text label.
+Important refresh/layout helpers:
 
-#### `run_desktop_app(runtime)`
+- `refresh_status(...)`: slower status/log/performance refresh.
+- `refresh_plot(...)`: fast graph refresh for line spectrum, spectrogram, cursor, and frame labels.
+- `refresh_view(...)`: immediate status and plot refresh.
+- `_apply_live_graph_mode(...)`: swaps between line plot and spectrogram.
+- `_spectrogram_source_frames(...)`: selects rows inside the configured time window.
+- `_build_spectrogram_rows(...)`: gathers compact rows for the heatmap.
+- `_apply_frame_data_label_visibility(...)`: hides selected Frame Data rows.
+- `_apply_performance_monitor_state(...)`: pauses/resumes metrics when the Performance card is hidden/shown.
+- `_apply_responsive_layout(...)`: adapts side-by-side vs stacked layout and plot sizing.
 
-Purpose:
-Creates `DesktopSpectrometerApp` and starts Kivy's event loop.
-
-Rationale:
-This gives the entry point a simple one-line way to launch the UI.
-
-## Typical End-To-End Example
+## Typical End-To-End Capture
 
 Here is what happens during a normal frame capture:
 
@@ -719,13 +676,27 @@ Here is what happens during a normal frame capture:
 2. `desktop_app.py` builds the runtime and starts Kivy.
 3. The user clicks `Connect`.
 4. `CommandService.connect(...)` opens the COM port through `SerialTransport`.
-5. `SerialTransport` starts reading bytes from the STM32.
-6. `CommandService` queues the raw bytes.
+5. `SerialTransport` starts reading USB CDC bytes from the STM32.
+6. `CommandService` queues the raw chunks.
 7. `DeviceStreamReader` rebuilds packets.
 8. `protocol.py` recognizes a binary `CCD1` frame.
-9. `CommandService._process_packet(...)` updates `StateManager` and `SessionManager`.
-10. `DesktopSpectrometerApp.refresh_plot(...)` reads the latest frame and redraws the graph.
-11. If the user clicks `Export Session CSV`, `SessionManager.export_csv()` and `export_spectra_csv(...)` write the buffered data to disk.
+9. `CommandService._process_packet(...)` updates state and session tracking.
+10. `SpectrumBuilder.build_from_frame(...)` builds processed live-display values and a compact spectrogram row.
+11. `DesktopSpectrometerApp.refresh_plot(...)` redraws the selected graph mode.
+12. If the user clicks `Export Session CSV`, `SessionManager.export_csv()` and `export_spectra_csv(...)` write buffered data to disk.
+
+## Typical Calibration Update
+
+Here is what happens when calibration changes:
+
+1. The user opens `Calibration Manager`.
+2. The user edits toggles, vectors, mapping points, QE points, or normalization mode.
+3. `Preview Calibration` reads the form into a `CalibrationConfig`.
+4. `CommandService.apply_calibration_config(...)` normalizes pixel/wavelength mode and updates `CalibrationManager`.
+5. If a latest frame exists, `SpectrumBuilder.rebuild_live_frame(...)` rebuilds its processed display values.
+6. `StateManager` stores the updated frame and calibration config.
+7. `refresh_view()` updates the graph and summaries.
+8. `Save Calibration` writes the calibration JSON and also syncs user config.
 
 ## Best Files To Read First
 
@@ -735,23 +706,27 @@ If you want to understand the code in the most natural order, start here:
 2. `backend/core/runtime.py`
 3. `backend/models/config.py`
 4. `backend/models/frames.py`
-5. `backend/core/command_service.py`
-6. `backend/device/serial_transport.py`
-7. `backend/device/packet_reader.py`
-8. `backend/processing/spectrum_builder.py`
-9. `frontend/kivy_app.py`
+5. `backend/models/status.py`
+6. `backend/core/command_service.py`
+7. `backend/core/session_manager.py`
+8. `backend/device/protocol.py`
+9. `backend/device/packet_reader.py`
+10. `backend/device/serial_transport.py`
+11. `backend/processing/spectrum_builder.py`
+12. `backend/processing/calibration_manager.py`
+13. `backend/core/performance_monitor.py`
+14. `backend/storage/export_csv.py`
+15. `frontend/kivy_app.py`
 
 ## Final Mental Model
 
 The simplest way to think about this project is:
 
-- `device` gets the bytes
-- `protocol` explains the bytes
-- `core` decides what to do with them
-- `state` remembers the latest truth
-- `session` remembers recent history
-- `processing` adds meaning to raw numbers
-- `storage` saves things to disk
-- `frontend` shows the result to the user
+- `device` gets and decodes the bytes
+- `protocol` defines what the bytes mean
+- `core` coordinates state, sessions, commands, and metrics
+- `processing` turns raw samples into display and export values
+- `storage` saves configs and CSV files
+- `frontend` shows the live instrument and tools
 
-That is the full system in one sentence.
+That is the full desktop system in one pass.
